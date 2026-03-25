@@ -314,13 +314,13 @@ source .venv/bin/activate</code></pre>
         // Global Configuration (intended for build-time injection)
         const CONFIG = {
             // Placeholders to be replaced by GitHub Actions/CI-CD
-            GIT_CLONE_URL: "__GIT_CLONE_URL__",
-            GITHUB_SOURCE_URL: "__GITHUB_SOURCE_URL__",
+            GIT_CLONE_URL: "https://github.com/AshwiniShankwaar/NexusData.git",
+            GITHUB_SOURCE_URL: "https://github.com/AshwiniShankwaar/NexusData",
             
             // Default fallbacks
             DEFAULTS: {
-                GIT_CLONE_URL: "nexusdata-core.git",
-                GITHUB_SOURCE_URL: "https://github.com/ashwin/NexusData"
+                GIT_CLONE_URL: "NexusData.git",
+                GITHUB_SOURCE_URL: "https://github.com/AshwiniShankwaar/NexusData"
             }
         };
 
