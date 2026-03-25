@@ -1,1 +1,0 @@
-{"ts": "2026-03-24T16:29:40.599", "session_id": "9f70eda6", "query": "is there any user available", "sql": "SELECT\n  COUNT(id)\nFROM users\nWHERE\n  status = 'active';", "operation": "count", "rows": 1, "columns": ["COUNT(id)"], "error": null, "from_cache": false, "confidence": 0.9, "anomaly_warnings": [], "execution_ms": 15.0}

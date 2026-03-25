@@ -19,17 +19,12 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Modules allowed inside generated code
+# Modules allowed inside generated code (import-level check only)
 _ALLOWED_IMPORTS = frozenset([
-    "pandas", "numpy", "matplotlib", "matplotlib.pyplot",
-    "matplotlib.ticker", "matplotlib.dates", "matplotlib.gridspec",
-    "io", "base64", "math", "statistics", "datetime", "collections",
-    "itertools", "functools", "scipy", "scipy.stats",
+    "scipy", "scipy.stats",
 ])
 
 # Top-level names forbidden in generated code
-# NOTE: `print` is intentionally NOT banned here — it is intercepted by a safe
-#       capture function injected into the execution namespace.
 _BANNED_CALLS = frozenset([
     "open", "exec", "eval", "__import__", "compile", "getattr", "setattr",
     "delattr", "input", "breakpoint", "vars", "dir", "globals",
@@ -45,6 +40,11 @@ _CHART_RE = re.compile(
 
 # Supported chart types
 CHART_TYPES = ("bar", "line", "scatter", "pie", "histogram", "box", "heatmap", "area")
+
+# Ensure matplotlib uses the non-interactive Agg backend once at import time
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as _plt_module  # noqa: E402  (after backend set)
 
 
 @dataclass
@@ -68,9 +68,9 @@ class PandasAgent:
         - pd           : pandas
         - np           : numpy
         - plt          : matplotlib.pyplot  (Agg backend — non-interactive)
+        - stats        : scipy.stats  (use directly, e.g. stats.shapiro(data))
         - io, base64   : for PNG encoding
         - math, statistics, datetime, collections, itertools, functools
-        Allowed optional import: `from scipy import stats`
 
         ## Output contract
         1. Store your FINAL text answer in `analysis_text` (str). It must be informative,
@@ -90,7 +90,7 @@ class PandasAgent:
 
         ## Analytical skills — apply as appropriate
         - Descriptive stats: mean, median, std, min, max, quartiles, skewness, kurtosis
-        - Distributions: histograms, normality checks (from scipy import stats; stats.shapiro if n≤5000)
+        - Distributions: histograms, normality checks (stats.shapiro if n≤5000)
         - Correlations: df.corr(), heatmaps, scatter matrix
         - Aggregations: groupby, pivot_table, resample (for time series)
         - Rankings: nlargest/nsmallest, rank(), cumsum/cumprod
@@ -107,6 +107,13 @@ class PandasAgent:
         - Round displayed numbers to 2 decimal places
         - Add value labels on bar charts when n_bars ≤ 20
 
+        ## COLORS — strict rules (violations cause runtime errors)
+        - NEVER pass a DataFrame column or Series as the `color=` argument.
+        - Use ONLY: a single named color string ('steelblue', 'tab:blue', 'coral'),
+          a fixed list of named colors (['tab:blue', 'tab:orange']),
+          or a colormap slice: `plt.cm.tab10.colors[:n]` where n = number of bars/lines.
+        - For grouped/stacked charts use `color=plt.cm.tab10.colors[:n_groups]`.
+
         ## Chart type guidance
         - bar        : categorical comparisons, value counts, group totals
         - line       : trends over time, continuous data, cumulative sums
@@ -118,7 +125,7 @@ class PandasAgent:
         - area       : cumulative trends, stacked time series
 
         ## STRICT RULES
-        1. Do NOT write import statements (exception: `from scipy import stats` is allowed).
+        1. Do NOT write import statements of any kind — all needed objects are pre-loaded.
         2. Do NOT use: open(), os, sys, subprocess, exec(), eval(), __import__(),
            any socket/network calls, file writes, pip, or importlib.
         3. Do NOT use print() — append to `analysis_text` instead.
@@ -142,33 +149,18 @@ class PandasAgent:
         wants_chart: bool = False,
         chart_type: Optional[str] = None,
     ) -> AnalysisResult:
-        """
-        Analyse the provided data and optionally produce a chart.
-
-        Args:
-            user_query:  The user's natural-language question.
-            columns:     Column names of the result DataFrame.
-            rows:        Row data (list of lists or list of dicts).
-            wants_chart: Whether to generate a chart at all.
-            chart_type:  Specific chart type or None to auto-select.
-        """
         if not rows or not columns:
             return AnalysisResult(error="No data to analyse.")
         try:
-            # Auto-detect chart intent if not explicitly requested
             if not wants_chart:
                 wants_chart = bool(_CHART_RE.search(user_query))
-
-            # Auto-select chart type when wanted but not specified
             if wants_chart and not chart_type:
                 chart_type = self._select_chart_type(columns, rows, user_query)
 
             code = self._generate_code(user_query, columns, rows, wants_chart, chart_type)
 
-            # First validation pass
             ok, reason = self._validate(code)
             if not ok:
-                # Sanitise (e.g. rewrite print() calls) and re-validate
                 code = self._sanitise(code)
                 ok, reason = self._validate(code)
                 if not ok:
@@ -195,13 +187,7 @@ class PandasAgent:
 
     @staticmethod
     def _select_chart_type(columns: List[str], rows: List[Any], query: str) -> str:
-        """
-        Infer the most appropriate chart type from query intent and data shape.
-        Returns one of: bar, line, scatter, pie, histogram, box, heatmap, area.
-        """
         q = query.lower()
-
-        # Explicit keyword overrides (most specific first)
         if re.search(r"\bheatmap\b|\bcorrelation matrix\b", q):
             return "heatmap"
         if re.search(r"\bscatter\b|\bcorrelat\b|\brelationship\b|\bvs\b", q):
@@ -218,7 +204,6 @@ class PandasAgent:
                      r"|\bweek\b|\bdate\b|\bday\b|\bquarter\b|\bperiod\b", q):
             return "line"
 
-        # Data-shape heuristics
         col_lower = [c.lower() for c in columns]
         has_date_col = any(
             kw in c
@@ -231,7 +216,6 @@ class PandasAgent:
         n_cols = len(columns)
         n_rows = len(rows)
 
-        # Two-column, both numeric → scatter
         if n_cols == 2 and rows:
             try:
                 sample = rows[0]
@@ -241,11 +225,9 @@ class PandasAgent:
             except Exception:
                 pass
 
-        # Single numeric column, many rows → histogram
         if n_cols == 1 and n_rows > 20:
             return "histogram"
 
-        # Default: bar chart covers most categorical / metric comparisons
         return "bar"
 
     def _generate_code(
@@ -271,22 +253,29 @@ class PandasAgent:
             "Write the Python code now:"
         )
         raw = self._llm.generate(self.SYSTEM_PROMPT, user_prompt)
-        # Strip markdown fences the model might add
         raw = re.sub(r"^```[a-zA-Z0-9_]*\n?", "", raw.strip(), flags=re.MULTILINE)
         raw = re.sub(r"\n?```\s*$", "", raw.strip(), flags=re.MULTILINE)
         return raw.strip()
 
     @staticmethod
     def _sanitise(code: str) -> str:
-        """
-        Best-effort sanitisation: rewrite common LLM anti-patterns before AST validation.
-        Transforms `print(expr)` → `analysis_text += str(expr) + '\\n'`.
-        """
-        return re.sub(
+        """Rewrite print() → analysis_text += and strip any import statements."""
+        code = re.sub(
             r"\bprint\s*\((.+?)\)",
             lambda m: f'analysis_text += str({m.group(1)}) + "\\n"',
             code,
         )
+        # Strip any import lines the LLM sneaked in (except scipy which is pre-loaded)
+        code = re.sub(r"^\s*import\s+(?!scipy).*$", "", code, flags=re.MULTILINE)
+        code = re.sub(r"^\s*from\s+(?!scipy).*$", "", code, flags=re.MULTILINE)
+        return code
+
+    @staticmethod
+    def _strip_color_args(code: str) -> str:
+        """Last-resort: remove color=/facecolor= kwargs so matplotlib uses defaults."""
+        code = re.sub(r",?\s*\bcolor\s*=\s*(?:df\[.*?\]|[A-Za-z_]\w*(?:\[.*?\])?)", "", code)
+        code = re.sub(r",?\s*\bfacecolor\s*=\s*(?:df\[.*?\]|[A-Za-z_]\w*(?:\[.*?\])?)", "", code)
+        return code
 
     def _validate(self, code: str):
         """AST-walk the generated code and reject anything dangerous."""
@@ -296,7 +285,6 @@ class PandasAgent:
             return False, f"Syntax error: {e}"
 
         for node in ast.walk(tree):
-            # Block forbidden imports
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 names = (
                     [alias.name for alias in node.names]
@@ -308,12 +296,10 @@ class PandasAgent:
                     if root not in _ALLOWED_IMPORTS:
                         return False, f"Import '{name}' is not allowed"
 
-            # Block forbidden calls by name
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name):
                     if node.func.id in _BANNED_CALLS:
                         return False, f"Call '{node.func.id}' is not allowed"
-                # Block dangerous attribute calls (os.system, subprocess.run, etc.)
                 if isinstance(node.func, ast.Attribute):
                     if isinstance(node.func.value, ast.Name):
                         owner = node.func.value.id
@@ -325,41 +311,71 @@ class PandasAgent:
     def _execute(self, code: str, columns: List[str], rows: List[Any]) -> AnalysisResult:
         import pandas as pd
         import numpy as np
-        import matplotlib
-        matplotlib.use("Agg")  # non-interactive backend for server use
-        import matplotlib.pyplot as plt
+        import math
+        import statistics as statistics_mod
+        import datetime
+        import collections
+        import itertools
+        import functools
+
+        try:
+            from scipy import stats as _scipy_stats
+        except Exception:
+            _scipy_stats = None
 
         df = pd.DataFrame(rows, columns=columns)
 
-        # Capture print() calls safely instead of blocking them
         _print_lines: List[str] = []
 
         def _safe_print(*args, **kwargs) -> None:
             sep = kwargs.get("sep", " ")
             _print_lines.append(sep.join(str(a) for a in args))
 
-        ns: Dict[str, Any] = {
-            "df": df,
-            "pd": pd,
-            "np": np,
-            "plt": plt,
-            "io": io,
-            "base64": base64,
-            "analysis_text": "",
-            "chart_b64": None,
-            "print": _safe_print,
-        }
-
-        # Build restricted builtins — allow safe operations, block dangerous ones
         _builtins_src = __builtins__ if isinstance(__builtins__, dict) else vars(__builtins__)
         safe_builtins = {
             k: v for k, v in _builtins_src.items()
             if k not in _BANNED_CALLS and k not in ("open", "breakpoint", "input")
         }
-        safe_builtins["print"] = _safe_print  # override in builtins too
+        safe_builtins["print"] = _safe_print
 
+        def _make_ns() -> Dict[str, Any]:
+            return {
+                "__builtins__": safe_builtins,
+                "df": df,
+                "pd": pd,
+                "np": np,
+                "plt": _plt_module,
+                "io": io,
+                "base64": base64,
+                "math": math,
+                "statistics": statistics_mod,
+                "datetime": datetime,
+                "collections": collections,
+                "itertools": itertools,
+                "functools": functools,
+                "stats": _scipy_stats,
+                "analysis_text": "",
+                "chart_b64": None,
+                "print": _safe_print,
+            }
+
+        ns = _make_ns()
         try:
-            exec(code, {"__builtins__": safe_builtins}, ns)  # noqa: S102
+            exec(code, ns)  # noqa: S102
+        except (ValueError, TypeError) as exc:
+            exc_str = str(exc).lower()
+            if "color" in exc_str or "facecolor" in exc_str:
+                # Color argument was a DataFrame column — strip and retry
+                logger.warning("Chart color error (%s) — retrying without color args", exc)
+                fixed_code = self._strip_color_args(code)
+                ns2 = _make_ns()
+                try:
+                    exec(fixed_code, ns2)  # noqa: S102
+                    ns = ns2
+                except Exception as exc2:
+                    return AnalysisResult(error=f"Execution error: {exc2}")
+            else:
+                return AnalysisResult(error=f"Execution error: {exc}")
         except Exception as exc:
             return AnalysisResult(error=f"Execution error: {exc}")
 

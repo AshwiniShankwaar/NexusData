@@ -52,6 +52,7 @@ class AuditLogger:
         confidence: float = 1.0,
         anomaly_warnings: list | None = None,
         execution_ms: Optional[float] = None,
+        phase_outputs: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not self._enabled:
             return
@@ -68,6 +69,7 @@ class AuditLogger:
             "confidence": confidence,
             "anomaly_warnings": anomaly_warnings or [],
             "execution_ms": execution_ms,
+            "phase_outputs": phase_outputs or {},
         }
         try:
             with open(self._path, "a", encoding="utf-8") as f:

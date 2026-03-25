@@ -12,13 +12,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
+import bcrypt as _bcrypt
+
 from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
 
 _ALGO = "HS256"
 _TOKEN_EXPIRE_DAYS = 7
-
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def _secret() -> str:
@@ -33,11 +32,11 @@ def _token_hash(token: str) -> str:
 # ── Password ───────────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return _pwd_ctx.hash(plain)
+    return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_ctx.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 # ── Token lifecycle ────────────────────────────────────────────────────────────

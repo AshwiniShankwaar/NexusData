@@ -194,11 +194,17 @@ class GoalIdentifierAgent:
             persona_context=persona_context,
         )
 
-        response_text = self.llm.generate(sys_prompt, prev_result.original_input)
-        data = _extract_json(response_text)
-
-        if data is None:
-            logger.warning("GoalIdentifier: JSON extraction failed. Raw: %s", response_text[:200])
+        try:
+            response_text = self.llm.generate(sys_prompt, prev_result.original_input)
+            data = _extract_json(response_text)
+            if data is None:
+                logger.warning("GoalIdentifier: JSON extraction failed. Raw: %s", response_text[:200])
+        except Exception as exc:
+            logger.error(
+                "GoalIdentifier: LLM call failed (%s: %s) — using keyword-based fallback.",
+                type(exc).__name__, exc,
+            )
+            data = None
             data = {
                 "operation": "general",
                 "time_frame": "none", "filters": [], "grouping": [],

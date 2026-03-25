@@ -157,7 +157,8 @@ Reply with ONLY the single category word. No punctuation, no explanation."""
                 self._INTENT_SYSTEM,
                 f"User message: {query}",
             ).strip().lower().split()[0]  # take first word only in case model adds extras
-        except Exception:
+        except Exception as exc:
+            logger.warning("Intent classification failed (%s) — failing open to pipeline.", type(exc).__name__)
             return None  # fail open — let the pipeline handle it
 
         if category == "data":
@@ -200,6 +201,7 @@ Reply with ONLY the single category word. No punctuation, no explanation."""
 
         # Phase timing helper
         t0 = _time.monotonic()
+        _phase_outputs: dict = {}   # captured per-phase outputs for log enrichment
 
         def _emit(phase: str) -> None:
             if phase_callback:
@@ -208,40 +210,96 @@ Reply with ONLY the single category word. No punctuation, no explanation."""
         # Self-improving KB: scan the message for domain knowledge assertions
         self._kb_updater.scan_and_update(nl_query, self._kb)
 
-        _emit("normalizing")
-        norm = self._normalizer.normalize(nl_query)
-        _emit("identifying_goal")
-        goal = self._identifier.identify(norm)
-        _emit("resolving_references")
-        resolved = self._resolver.resolve(goal)
+        try:
+            _emit("normalizing")
+            norm = self._normalizer.normalize(nl_query)
+            _phase_outputs["normalizer"] = {
+                "intent_hint": norm.normalized.intent_hint,
+                "mentioned_tables": norm.normalized.mentioned_tables,
+                "mentioned_columns": norm.normalized.mentioned_columns,
+                "temporal": norm.normalized.temporal_expression,
+                "is_cached": norm.is_cached,
+            }
+            logger.debug(
+                "Stage 1 output: intent=%s tables=%s cached=%s",
+                norm.normalized.intent_hint, norm.normalized.mentioned_tables, norm.is_cached,
+            )
 
-        # Entity context injection for pronoun resolution (#3)
-        if self._entity_tracker.has_pronoun(nl_query):
-            entity_ctx = self._entity_tracker.resolve_context()
-            if entity_ctx:
-                resolved.resolved_goal_json["_entity_context"] = entity_ctx
+            _emit("identifying_goal")
+            goal = self._identifier.identify(norm)
+            _phase_outputs["goal_identifier"] = {
+                "operation": goal.goal_dict.get("operation"),
+                "relevant_tables": goal.relevant_tables,
+                "ambiguous": goal.is_ambiguous,
+                "restricted": goal.is_restricted,
+                "skip_cache": goal.skip_cache,
+                "intent_summary": goal.intent_summary,
+            }
+            logger.debug(
+                "Stage 2 output: op=%s tables=%s ambiguous=%s restricted=%s",
+                goal.goal_dict.get("operation"), goal.relevant_tables,
+                goal.is_ambiguous, goal.is_restricted,
+            )
 
-        # Decompose complex queries — injects _decomposition key into resolved_goal_json
-        if self._decomposer and not goal.is_ambiguous:
-            decomp = self._decomposer.decompose(nl_query, resolved.resolved_goal_json)
-            if decomp.is_complex and decomp.enriched_goal.get("_decomposition"):
-                resolved.resolved_goal_json["_decomposition"] = decomp.enriched_goal["_decomposition"]
+            _emit("resolving_references")
+            resolved = self._resolver.resolve(goal)
+            _phase_outputs["resolver"] = {
+                "context_note": resolved.resolved_goal_json.get("_context_note", ""),
+                "parent_turn": resolved.resolved_goal_json.get("_parent_turn_id"),
+            }
+            logger.debug("Stage 3 output: context_note=%r", _phase_outputs["resolver"]["context_note"])
 
-        # Correction shortcut — route to ask_with_feedback using last turn's SQL
-        if goal.goal_dict.get("operation") == "correction":
-            last = self._kb.get_last_turn_record()
-            if last and last.get("sql"):
-                logger.info("Correction detected — routing to ask_with_feedback.")
-                return self.ask_with_feedback(
-                    original_query=last.get("user_query", nl_query),
-                    bad_sql=last["sql"],
-                    feedback=nl_query,
-                )
+            # Entity context injection for pronoun resolution (#3)
+            if self._entity_tracker.has_pronoun(nl_query):
+                entity_ctx = self._entity_tracker.resolve_context()
+                if entity_ctx:
+                    resolved.resolved_goal_json["_entity_context"] = entity_ctx
 
-        _emit("planning")
-        plan = self._planner.plan(resolved)
-        _emit("executing")
-        result = self._executor.execute(plan)
+            # Decompose complex queries — injects _decomposition key into resolved_goal_json
+            if self._decomposer and not goal.is_ambiguous:
+                decomp = self._decomposer.decompose(nl_query, resolved.resolved_goal_json)
+                if decomp.is_complex and decomp.enriched_goal.get("_decomposition"):
+                    resolved.resolved_goal_json["_decomposition"] = decomp.enriched_goal["_decomposition"]
+                    _phase_outputs["decomposer"] = {"is_complex": True, "sub_goals": len(decomp.enriched_goal["_decomposition"].get("sub_goals", []))}
+
+            # Correction shortcut — route to ask_with_feedback using last turn's SQL
+            if goal.goal_dict.get("operation") == "correction":
+                last = self._kb.get_last_turn_record()
+                if last and last.get("sql"):
+                    logger.info("Correction detected — routing to ask_with_feedback.")
+                    return self.ask_with_feedback(
+                        original_query=last.get("user_query", nl_query),
+                        bad_sql=last["sql"],
+                        feedback=nl_query,
+                    )
+
+            _emit("planning")
+            plan = self._planner.plan(resolved)
+            _phase_outputs["planner"] = {"sql_drafted": plan.sql[:200] if plan.sql else ""}
+            logger.debug("Stage 4 output: sql=%s", (plan.sql or "")[:120])
+
+            _emit("executing")
+            result = self._executor.execute(plan)
+            _phase_outputs["executor"] = {
+                "rows": len(result.rows),
+                "error": result.error,
+                "from_cache": result.from_cache,
+                "execution_ms": result.execution_ms,
+            }
+            logger.debug(
+                "Stage 5 output: rows=%d error=%s cache=%s",
+                len(result.rows), result.error, result.from_cache,
+            )
+
+        except Exception as exc:
+            logger.exception("Pipeline crashed for query %r", nl_query[:120])
+            return QueryResult(
+                sql="",
+                error=(
+                    f"The pipeline encountered an unexpected error ({type(exc).__name__}). "
+                    "Please try rephrasing your question or check server logs for details."
+                ),
+            )
 
         # Track cache hit for adaptive threshold
         if result.from_cache and not result.error:
@@ -284,8 +342,8 @@ Reply with ONLY the single category word. No punctuation, no explanation."""
                 result.natural_language_summary = self._llm.summarise_result(
                     nl_query, result.sql, result.columns, result.rows
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("NL summary failed (%s) — omitting summary.", type(exc).__name__)
 
         # Confidence heuristic
         result.confidence = self._estimate_confidence(result, goal)
@@ -302,6 +360,7 @@ Reply with ONLY the single category word. No punctuation, no explanation."""
             confidence=result.confidence,
             anomaly_warnings=result.anomaly_warnings,
             execution_ms=result.execution_ms,
+            phase_outputs=_phase_outputs,
         )
 
         # Cap short-term memory log

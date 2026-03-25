@@ -309,8 +309,15 @@ class PlannerAgent:
         if context_note:
             user_prompt = f"{context_note}\n\nUser question: {user_prompt}"
 
-        response_text = self.llm.generate(sys_prompt, user_prompt)
-        sql = _clean_sql(response_text)
+        try:
+            response_text = self.llm.generate(sys_prompt, user_prompt)
+        except Exception as exc:
+            logger.error("Planner: LLM call failed (%s: %s)", type(exc).__name__, exc)
+            raise RuntimeError(
+                f"SQL generation failed: the LLM could not be reached ({type(exc).__name__}). "
+                "Check your API key and model configuration."
+            ) from exc
 
+        sql = _clean_sql(response_text)
         logger.debug("Drafted SQL: %s", sql)
         return PlannerResult(prev, sql)

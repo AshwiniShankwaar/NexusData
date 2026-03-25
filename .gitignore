@@ -33,14 +33,20 @@ htmlcov/
 test_out.log
 
 # ── NexusData runtime data ─────────────────────────────────────────────────────
-config.json          # contains API keys — NEVER commit
-nexus_kb/            # per-DB knowledge bases (large, auto-generated)
-nexus_exports/       # CSV / JSON exports
-data/                # app-generated exports and uploads
+# contains API keys — NEVER commit
+config.json
+# per-DB knowledge bases (large, auto-generated)
+nexus_kb/
+# CSV / JSON exports
+nexus_exports/
+# app-generated exports and uploads
+data/
 
 # ── Logs ────────────────────────────────────────────────────────────────────────
-logs/nexus_*.log     # daily log files (auto-generated)
-logs/archive/        # weekly zip archives
+# daily log files (auto-generated)
+logs/nexus_*.log
+# weekly zip archives
+logs/archive/
 !logs/.gitkeep
 !logs/archive/.gitkeep
 logs/

@@ -39,12 +39,12 @@ if _UI_DIR.is_dir():
 @app.get("/", include_in_schema=False)
 async def serve_index():
     """Serve the chat UI HTML."""
-    index = _UI_DIR / "index.html"
+    index = _UI_DIR / "NexusData.html"
     if not index.exists():
         from fastapi.responses import HTMLResponse
         return HTMLResponse(
             "<h2>NexusData UI</h2>"
-            "<p>Place your <code>index.html</code> in <code>nexus_data/ui/</code>.</p>"
+            "<p>Place your <code>NexusData.html</code> in <code>nexus_data/ui/</code>.</p>"
             "<p>API docs: <a href='/docs'>/docs</a></p>",
             status_code=200,
         )

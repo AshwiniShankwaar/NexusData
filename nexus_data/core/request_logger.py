@@ -87,6 +87,7 @@ def log_pipeline_request(
     is_clarification: bool = False,
     confidence: float = 1.0,
     phase_timings: Optional[Dict[str, float]] = None,
+    phase_outputs: Optional[Dict[str, Any]] = None,
     user_id: Optional[str] = None,
     conv_id: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
@@ -113,6 +114,7 @@ def log_pipeline_request(
             "is_clarification": is_clarification,
             "confidence": round(confidence, 3),
             "phase_ms": {k: round(v, 1) for k, v in (phase_timings or {}).items()},
+            "phase_outputs": phase_outputs or {},
         }
         if extra:
             record.update(extra)
@@ -124,10 +126,14 @@ def log_pipeline_request(
         timings_str = " | ".join(
             f"{k}={v:.0f}ms" for k, v in (phase_timings or {}).items()
         )
+        op = (phase_outputs or {}).get("goal_identifier", {}).get("operation", "?")
+        tables = (phase_outputs or {}).get("goal_identifier", {}).get("relevant_tables", [])
         _logger.info(
-            "[%s] query=%r  rows=%d  error=%s  %s",
+            "[%s] op=%s tables=%s query=%r  rows=%d  error=%s  %s",
             source,
-            query[:100],
+            op,
+            tables,
+            query[:80],
             result_rows,
             result_error or "-",
             timings_str,

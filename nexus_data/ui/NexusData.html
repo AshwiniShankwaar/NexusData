@@ -614,6 +614,10 @@ let _availableProviders = {};
 let _rerunMode = false;
 let _streaming = false;
 let _editingConnId = null;
+// Per-message result data store: botMsgId → {columns, rows}
+const _msgDataStore = new Map();
+// In-flight stream shells: convId → DOM element (the bot-message shell still streaming)
+const _inFlightByConv = new Map();
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function toast(msg, type = 'info', duration = 3000) {
@@ -813,6 +817,7 @@ function renderConvList() {
 
 async function loadConversation(convId) {
     _activeConvId = convId;
+    _msgDataStore.clear();
     const conv = _conversations.find(c => c.id === convId);
     document.getElementById('chat-title').textContent = conv ? conv.title : 'Chat';
     // Restore the DB selector to match this conversation's database
@@ -851,6 +856,12 @@ async function loadConversation(convId) {
                 appendBotMsg(fakeResult, m.id, false);
             }
         });
+        // Re-attach any in-flight stream shell for this conversation
+        const inFlightShell = _inFlightByConv.get(convId);
+        if (inFlightShell) {
+            document.getElementById('chat-messages').appendChild(inFlightShell);
+            lucide.createIcons({ nodes: [inFlightShell] });
+        }
         scrollChat();
     } catch {}
 }
@@ -1023,6 +1034,7 @@ async function streamAsk(endpoint, query, userMsgId) {
     _streaming = true;
     document.getElementById('send-btn').disabled = true;
 
+    const myConvId = _activeConvId;
     const botMsgId = 'bot-' + Date.now();
     const phaseContainerId = 'phases-' + botMsgId;
     const resultContainerId = 'result-' + botMsgId;
@@ -1044,6 +1056,7 @@ async function streamAsk(endpoint, query, userMsgId) {
     `;
     document.getElementById('chat-messages').appendChild(shell);
     lucide.createIcons({ nodes: [shell] });
+    _inFlightByConv.set(myConvId, shell);
     scrollChat();
 
     const token = localStorage.getItem(STORAGE_KEY);
@@ -1104,6 +1117,8 @@ async function streamAsk(endpoint, query, userMsgId) {
                         }
                     } else if (currentEvent === 'error') {
                         renderBotError(resultContainerId, data.message || 'Unknown error');
+                        finalizeThoughtSection(phaseContainerId, 'thought-' + botMsgId, null);
+                        toast('Query failed — see chat for details.', 'error', 4000);
                     } else if (currentEvent === 'done') {
                         if (data.phase_timings) {
                             updatePhaseTimeline(phaseContainerId, null, null, false, data.phase_timings);
@@ -1120,6 +1135,7 @@ async function streamAsk(endpoint, query, userMsgId) {
     } finally {
         const spinner = document.getElementById('spinner-' + botMsgId);
         if (spinner) spinner.remove();
+        _inFlightByConv.delete(myConvId);
         _streaming = false;
         document.getElementById('send-btn').disabled = false;
         scrollChat();
@@ -1217,6 +1233,11 @@ function renderBotResult(containerId, result, botMsgId) {
         </div>`;
     }
 
+    // Store this message's data so per-message CSV download works
+    if (result.rows && result.rows.length > 0) {
+        _msgDataStore.set(botMsgId, { columns: result.columns || [], rows: result.rows });
+    }
+
     // Results table
     if (result.rows && result.rows.length > 0) {
         const cols = result.columns || Object.keys(result.rows[0] || {});
@@ -1283,7 +1304,7 @@ function renderBotResult(containerId, result, botMsgId) {
             <i data-lucide="thumbs-down" style="width:12px;height:12px;"></i>
         </button>
         ${hasRows ? `<button onclick="openAnalyseModal('${escHtml(botMsgId)}')" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Analyse with AI">📊 Analyse</button>` : ''}
-        ${hasRows ? `<button onclick="exportCSV('${escHtml(_activeConvId)}')" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Export CSV">
+        ${hasRows ? `<button onclick="exportMsgCSV('${escHtml(botMsgId)}')" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Export CSV">
             <i data-lucide="download" style="width:12px;height:12px;"></i><span class="text-[10px]">CSV</span>
         </button>` : ''}
         ${result.is_clarification ? `<span class="text-[10px] text-amber-400 flex items-center gap-1 ml-1">
@@ -1319,22 +1340,38 @@ async function submitFeedback(msgId, rating, btn) {
     } catch {}
 }
 
-async function exportCSV(convId) {
-    const token = localStorage.getItem(STORAGE_KEY);
-    const url = `${API_BASE}/v1/conversations/${convId}/export?fmt=csv`;
-    try {
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) { showToast('Export failed', 'error'); return; }
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = 'nexusdata_export.csv';
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-    } catch (e) {
-        showToast('Export failed: ' + e.message, 'error');
+function csvEscape(v) {
+    const s = String(v ?? '');
+    return (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r'))
+        ? '"' + s.replace(/"/g, '""') + '"'
+        : s;
+}
+
+function exportMsgCSV(botMsgId) {
+    const data = _msgDataStore.get(botMsgId);
+    if (!data || !data.rows || data.rows.length === 0) {
+        toast('No data available for this result.', 'info');
+        return;
     }
+    const { columns, rows } = data;
+    const lines = [];
+    if (columns && columns.length) lines.push(columns.map(csvEscape).join(','));
+    rows.forEach(row => {
+        const vals = Array.isArray(row)
+            ? row
+            : columns.map(c => row[c] ?? '');
+        lines.push(vals.map(csvEscape).join(','));
+    });
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nexusdata_${botMsgId.replace(/[^a-z0-9]/gi, '_')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(`Downloading ${rows.length} rows…`, 'success');
 }
 
 function replyToClarification(botMsgId) {
