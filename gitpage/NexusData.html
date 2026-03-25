@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusData</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030303;
+            --accent: #6366f1;
+            --card-bg: #0a0a0a;
+            --border: #1a1a1a;
+        }
+        body {
+            background-color: var(--bg);
+            color: #ececec;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .grid-overlay {
+            background-image: linear-gradient(to right, #111 1px, transparent 1px), 
+                              linear-gradient(to bottom, #111 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .text-glow { text-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+        .bento-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bento-box:hover { border-color: #333; background: #0d0d0d; }
+        
+        /* Looping Typewriter Effect */
+        #typewriter::after { content: '|'; animation: blink 1s infinite; margin-left: 2px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Scroll Reveal */
+        .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease-out; }
+        .reveal.active { opacity: 1; transform: translateY(0); }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .db-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            background-color: #18181b;
+            border: 1px solid #27272a;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #a1a1aa;
+        }
+        code {
+            color: #818cf8;
+            background-color: rgba(99, 102, 241, 0.1);
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+    </style>
+</head>
+<body class="grid-overlay">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <i data-lucide="database" class="w-5 h-5 text-white"></i>
+                </div>
+                <span class="text-xl font-extrabold tracking-tighter">NexusData</span>
+            </div>
+            <div class="hidden lg:flex items-center gap-10 text-sm font-medium text-zinc-400">
+                <a href="#pipeline" class="hover:text-white transition-colors">Architecture</a>
+                <a href="#setup" class="hover:text-white transition-colors">Deployment</a>
+                <a href="#llm" class="hover:text-white transition-colors">LLM Context</a>
+                <!-- <a href="#security" class="hover:text-white transition-colors">Security</a> -->
+                <a href="https://github.com" id="github-link-nav" class="github-source-link bg-zinc-100 text-black px-5 py-2.5 rounded-full font-bold flex items-center gap-2 hover:bg-white transition-all">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+  <!-- GitHub SVG path data goes here -->
+  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.087-.731.084-.716.084-.716 1.205.082 1.838 1.215 1.838 1.215 1.07 1.835 2.809 1.305 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.046.138 3.003.404 2.292-1.552 3.3-.433 3.3-.433.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.798 24 17.291 24 12c0-6.627-5.373-12-12-12z"/>
+</svg> Get Started
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative pt-40 pb-32 px-6 overflow-hidden min-h-screen flex items-center">
+        <div id="canvas-container"></div>
+        <div class="relative z-10 max-w-7xl mx-auto text-center">
+            <!-- <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-400 mb-8">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                v1.0.0: Local-First Multi-User Release
+            </div> -->
+            <h1 class="text-6xl md:text-8xl font-extrabold tracking-tight leading-[1.05] mb-8">
+                Query your data in <br>
+                <span id="typewriter" class="text-indigo-500 text-glow"></span>
+            </h1>
+            <p class="text-xl text-zinc-400 max-w-3xl mx-auto leading-relaxed mb-12">
+                NexusData is a local-first, agentic SQL pipeline. No cloud uploads, no SaaS subscriptions, and zero data leakage. Talk to any database natively on your hardware.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#setup" class="w-full sm:w-auto px-10 py-4 bg-indigo-600 rounded-2xl font-bold text-white hover:bg-indigo-500 transition-all text-lg shadow-lg shadow-indigo-500/20">
+                    Deploy locally
+                </a>
+                <div class="w-full sm:w-auto flex items-center gap-3 px-6 py-4 bg-zinc-900 rounded-2xl border border-zinc-800 mono text-sm">
+                    <span class="text-zinc-600">git clone</span>
+                    <span id="clone-url-span" class="text-zinc-300">nexusdata-core.git</span>
+                    <button id="copy-clone-btn" class="ml-2 hover:text-white"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3D Pipeline Details -->
+    <section id="pipeline" class="py-32 px-6 max-w-7xl mx-auto relative">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div>
+                <h2 class="text-4xl font-extrabold mb-6">Pipeline Mechanics</h2>
+                <p class="text-zinc-400 mb-12">Every query undergoes a rigid anatomical breakdown before execution. We don't just "guess" SQL—we construct it through verified reasoning stages.</p>
+                
+                <div class="space-y-6">
+                    <div class="flex gap-6 group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-indigo-500 group-hover:border-indigo-500/50 transition-all">01</div>
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">Input Normalizer</h4>
+                            <p class="text-sm text-zinc-500">Sanitizes PII, standardizes casing, and removes colloquial noise using local regex + AST guards.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-indigo-500 group-hover:border-indigo-500/50 transition-all">02</div>
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">Goal Identifier</h4>
+                            <p class="text-sm text-zinc-500">Deconstructs the prompt into a structured JSON "Intent Object" identifying metrics and filters.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-indigo-500 group-hover:border-indigo-500/50 transition-all">03</div>
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">Reference Resolver</h4>
+                            <p class="text-sm text-zinc-500">Maps fuzzy terms (e.g., "sales") to actual DB schema (e.g., <code>fact_orders.total_price</code>) using LanceDB vector cache.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-indigo-500 group-hover:border-indigo-500/50 transition-all">04</div>
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">Query Planner</h4>
+                            <p class="text-sm text-zinc-500">Determines Join paths and selects the correct SQL dialect (Postgres, Oracle, DuckDB) via SQLAlchemy 2.x.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-6 group">
+                        <div class="flex-shrink-0 w-12 h-12 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-indigo-500 group-hover:border-indigo-500/50 transition-all">05</div>
+                        <div>
+                            <h4 class="font-bold text-lg mb-1">Executor & Healer</h4>
+                            <p class="text-sm text-zinc-500">Executes SQL. If a traceback occurs, the Self-Healer feeds the error back to the Planner for automatic correction.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative h-[600px] bento-box border-indigo-500/10 bg-indigo-500/5 overflow-hidden">
+                <div class="absolute inset-0 flex items-center justify-center p-8">
+                    <div class="w-full h-full bg-black/40 rounded-xl border border-white/5 p-6 font-mono text-xs overflow-y-auto" id="pipeline-stream">
+                        <div class="text-zinc-600 mb-4">// System.Pipeline initializing...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- DB Connectivity Matrix -->
+    <section class="py-24 px-6 max-w-7xl mx-auto">
+        <h3 class="text-3xl font-extrabold mb-12 text-center">Connectivity Matrix</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="bento-box p-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <i data-lucide="layers" class="text-indigo-500"></i>
+                    <h4 class="font-bold">Standard SQL</h4>
+                </div>
+                <ul class="space-y-4 text-sm">
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>PostgreSQL</span> <span class="db-badge">psycopg2-binary</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>MySQL/MariaDB</span> <span class="db-badge">pymysql</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>SQLite</span> <span class="db-badge">built-in</span></li>
+                </ul>
+            </div>
+            <div class="bento-box p-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <i data-lucide="cloud" class="text-sky-500"></i>
+                    <h4 class="font-bold">Enterprise & Cloud</h4>
+                </div>
+                <ul class="space-y-4 text-sm">
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>MS SQL Server</span> <span class="db-badge">pyodbc</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>Oracle</span> <span class="db-badge">cx_Oracle</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>Snowflake</span> <span class="db-badge">snowflake-sqlalchemy</span></li>
+                </ul>
+            </div>
+            <div class="bento-box p-8">
+                <div class="flex items-center gap-3 mb-6">
+                    <i data-lucide="bar-chart-3" class="text-amber-500"></i>
+                    <h4 class="font-bold">Analytics Engines</h4>
+                </div>
+                <ul class="space-y-4 text-sm">
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>DuckDB</span> <span class="db-badge">included</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>BigQuery</span> <span class="db-badge">sqlalchemy-bigquery</span></li>
+                    <li class="flex justify-between border-b border-white/5 pb-2"><span>CockroachDB</span> <span class="db-badge">sqlalchemy-cockroachdb</span></li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- LLM Acquisition Section -->
+    <section id="llm" class="py-24 px-6 max-w-7xl mx-auto border-t border-white/5">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl font-extrabold mb-4">LLM Configuration</h2>
+            <p class="text-zinc-500">Your API key is only stored in <code>.env</code>. It never touches our servers.</p>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="bento-box p-6 hover:shadow-2xl hover:shadow-indigo-500/10">
+                <h5 class="font-bold mb-2">Google Gemini</h5>
+                <p class="text-xs text-zinc-500 mb-4">Fastest setup, generous free tier.</p>
+                <a href="https://aistudio.google.com/" target="_blank" class="text-xs text-indigo-400 font-bold hover:underline">AI Studio &rarr;</a>
+            </div>
+            <div class="bento-box p-6 hover:shadow-2xl hover:shadow-indigo-500/10">
+                <h5 class="font-bold mb-2">OpenAI</h5>
+                <p class="text-xs text-zinc-500 mb-4">Gold standard for complex reasoning.</p>
+                <a href="https://platform.openai.com/" target="_blank" class="text-xs text-indigo-400 font-bold hover:underline">Platform &rarr;</a>
+            </div>
+            <div class="bento-box p-6 hover:shadow-2xl hover:shadow-indigo-500/10">
+                <h5 class="font-bold mb-2">Anthropic</h5>
+                <p class="text-xs text-zinc-500 mb-4">Best for long context & accuracy.</p>
+                <a href="https://console.anthropic.com/" target="_blank" class="text-xs text-indigo-400 font-bold hover:underline">Console &rarr;</a>
+            </div>
+            <div class="bento-box p-6 hover:shadow-2xl hover:shadow-indigo-500/10">
+                <h5 class="font-bold mb-2">OpenRouter</h5>
+                <p class="text-xs text-zinc-500 mb-4">Universal bridge for open models.</p>
+                <a href="https://openrouter.ai/" target="_blank" class="text-xs text-indigo-400 font-bold hover:underline">Dashboard &rarr;</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deployment Guide -->
+    <section id="setup" class="py-24 px-6 max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+            <div class="lg:col-span-8 bento-box p-10 bg-zinc-950">
+                <h3 class="text-3xl font-extrabold mb-10">Installation</h3>
+                <div class="space-y-12">
+                    <div class="relative pl-12">
+                        <span class="absolute left-0 top-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm">1</span>
+                        <h5 class="font-bold mb-4">Clone & Environment</h5>
+                        <pre class="bg-black p-4 rounded-xl border border-white/5 text-sm overflow-x-auto mb-4"><code>git clone https://github.com/org/nexusdata.git
+python -m venv .venv
+source .venv/bin/activate</code></pre>
+                    </div>
+                    <div class="relative pl-12">
+                        <span class="absolute left-0 top-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-sm border border-zinc-700">2</span>
+                        <h5 class="font-bold mb-4">Dependencies</h5>
+                        <pre class="bg-black p-4 rounded-xl border border-white/5 text-sm overflow-x-auto mb-4"><code>pip install -r requirements.txt</code></pre>
+                    </div>
+                    <div class="relative pl-12">
+                        <span class="absolute left-0 top-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-sm border border-zinc-700">3</span>
+                        <h5 class="font-bold mb-4">CLI Wizard</h5>
+                        <pre class="bg-black p-4 rounded-xl border border-white/5 text-sm overflow-x-auto"><code>python nexus_cli.py</code></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bento-box p-8 border-l-4 border-l-amber-500">
+                    <h5 class="font-bold mb-2">Prerequisites</h5>
+                    <ul class="text-sm text-zinc-400 space-y-2">
+                        <li>- Python 3.11+</li>
+                        <li>- 8GB RAM minimum</li>
+                        <li>- Valid LLM API Key</li>
+                    </ul>
+                </div>
+                <div class="bento-box p-8 border-l-4 border-l-green-500">
+                    <h5 class="font-bold mb-2">Security</h5>
+                    <p class="text-xs text-zinc-500">Your <code>.env</code> file is git-ignored. All database credentials remain on your disk.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-20 border-t border-white/5 mt-20">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <div class="flex justify-center gap-8 mb-10 text-zinc-500">
+                <a href="#" id="github-link-footer" class="github-source-link hover:text-white"><i data-lucide="github" class="w-6 h-6"></i></a>
+                <a href="#" class="hover:text-white"><i data-lucide="twitter" class="w-6 h-6"></i></a>
+            </div>
+            <p class="text-zinc-600 text-sm font-mono uppercase">APACHE LICENSE 2.0 • LOCAL-ONLY SECURITY MODEL</p>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <button id="scrollToTopBtn" class="fixed bottom-8 right-8 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-xl shadow-indigo-500/20 opacity-0 translate-y-10 transition-all duration-300 z-50 flex items-center justify-center cursor-pointer pointer-events-none">
+        <i data-lucide="arrow-up" class="w-6 h-6"></i>
+    </button>
+
+    <script>
+        // Global Configuration (intended for build-time injection)
+        const CONFIG = {
+            // Placeholders to be replaced by GitHub Actions/CI-CD
+            GIT_CLONE_URL: "__GIT_CLONE_URL__",
+            GITHUB_SOURCE_URL: "__GITHUB_SOURCE_URL__",
+            
+            // Default fallbacks
+            DEFAULTS: {
+                GIT_CLONE_URL: "nexusdata-core.git",
+                GITHUB_SOURCE_URL: "https://github.com/ashwin/NexusData"
+            }
+        };
+
+        function updateDynamicContent() {
+            // Resolve URLs: prioritize injected values over defaults
+            const cloneUrl = (CONFIG.GIT_CLONE_URL.startsWith("__") || !CONFIG.GIT_CLONE_URL) 
+                ? CONFIG.DEFAULTS.GIT_CLONE_URL 
+                : CONFIG.GIT_CLONE_URL;
+            
+            const sourceUrl = (CONFIG.GITHUB_SOURCE_URL.startsWith("__") || !CONFIG.GITHUB_SOURCE_URL) 
+                ? CONFIG.DEFAULTS.GITHUB_SOURCE_URL 
+                : CONFIG.GITHUB_SOURCE_URL;
+
+            // Update DOM Elements
+            const cloneSpan = document.getElementById('clone-url-span');
+            if (cloneSpan) cloneSpan.textContent = cloneUrl;
+
+            const githubLinks = document.querySelectorAll('.github-source-link');
+            githubLinks.forEach(link => {
+                link.href = sourceUrl;
+            });
+
+            // Update Copy Functionality
+            const copyBtn = document.getElementById('copy-clone-btn');
+            if (copyBtn) {
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(`git clone ${cloneUrl}`).then(() => {
+                        // Success feedback: briefly change icon or text
+                        const icon = copyBtn.querySelector('i');
+                        if (icon) {
+                            const originalIcon = icon.getAttribute('data-lucide');
+                            icon.setAttribute('data-lucide', 'check');
+                            lucide.createIcons();
+                            setTimeout(() => {
+                                icon.setAttribute('data-lucide', originalIcon);
+                                lucide.createIcons();
+                            }, 2000);
+                        }
+                    });
+                };
+            }
+        }
+
+        lucide.createIcons();
+        updateDynamicContent();
+
+        // Looping Typewriter Effect
+        const phrases = ["Plain English.", "Natural Language.", "Human Conversations.", "Direct Intent."];
+        const element = document.getElementById('typewriter');
+        let phraseIdx = 0;
+        let charIdx = 0;
+        let isDeleting = false;
+        let typeSpeed = 150;
+
+        function typeLoop() {
+            const currentPhrase = phrases[phraseIdx];
+            if (isDeleting) {
+                element.innerHTML = currentPhrase.substring(0, charIdx - 1);
+                charIdx--;
+                typeSpeed = 75;
+            } else {
+                element.innerHTML = currentPhrase.substring(0, charIdx + 1);
+                charIdx++;
+                typeSpeed = 150;
+            }
+            if (!isDeleting && charIdx === currentPhrase.length) {
+                isDeleting = true;
+                typeSpeed = 2000;
+            } else if (isDeleting && charIdx === 0) {
+                isDeleting = false;
+                phraseIdx = (phraseIdx + 1) % phrases.length;
+                typeSpeed = 500;
+            }
+            setTimeout(typeLoop, typeSpeed);
+        }
+
+        // Scroll Reveal
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('active');
+            });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('section').forEach(el => {
+            el.classList.add('reveal');
+            observer.observe(el);
+        });
+
+        // Pipeline Stream Simulation
+        const streamLines = [
+            "Normalizing input: 'What was our total revenue in Berlin last month?'",
+            "PII Guard: No restricted patterns found.",
+            "Goal Identifier: Detected AGGREGATE(SUM), FILTER(City=Berlin)",
+            "Reference Resolver: Searching LanceDB for 'revenue'...",
+            "Mapping found: public.orders.net_total",
+            "Query Planner: Building join [orders] -> [dim_locations]",
+            "Selecting dialect: PostgreSQL v15",
+            "Executing SQL: SELECT SUM(net_total)...",
+            "Result: 142,500.00 EUR",
+            "Performance Hint: Consider adding index on dim_locations.city_name"
+        ];
+        
+        const streamContainer = document.getElementById('pipeline-stream');
+        let lineIdx = 0;
+        setInterval(() => {
+            const line = document.createElement('div');
+            line.className = "mb-2 text-indigo-300 animate-in slide-in-from-left duration-300";
+            line.innerHTML = `<span class="text-zinc-600 mr-2">[${new Date().toLocaleTimeString()}]</span> ${streamLines[lineIdx % streamLines.length]}`;
+            streamContainer.prepend(line);
+            lineIdx++;
+            if(streamContainer.childNodes.length > 20) streamContainer.removeChild(streamContainer.lastChild);
+        }, 3000);
+
+        // Three.js Animation
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            const nodes = [];
+            const nodeGroup = new THREE.Group();
+            const colors = [0x6366f1, 0x4f46e5, 0x818cf8];
+
+            for(let i=0; i<40; i++) {
+                const geom = new THREE.IcosahedronGeometry(Math.random() * 2 + 0.5, 0);
+                const mat = new THREE.MeshBasicMaterial({ 
+                    color: colors[i % 3], 
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.2
+                });
+                const mesh = new THREE.Mesh(geom, mat);
+                mesh.position.set((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+                mesh.velocity = new THREE.Vector3((Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.05);
+                nodes.push(mesh);
+                nodeGroup.add(mesh);
+            }
+            scene.add(nodeGroup);
+            camera.position.z = 120;
+
+            function animate() {
+                requestAnimationFrame(animate);
+                nodeGroup.rotation.y += 0.0005;
+                nodes.forEach(node => {
+                    node.position.add(node.velocity);
+                    if(Math.abs(node.position.x) > 100) node.velocity.x *= -1;
+                    if(Math.abs(node.position.y) > 100) node.velocity.y *= -1;
+                    if(Math.abs(node.position.z) > 100) node.velocity.z *= -1;
+                });
+                renderer.render(scene, camera);
+            }
+
+            window.addEventListener('scroll', () => {
+                const scrollPos = window.scrollY;
+                nodeGroup.position.y = scrollPos * 0.04;
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            animate();
+        }
+
+        const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 400) {
+                scrollToTopBtn.classList.remove('opacity-0', 'translate-y-10', 'pointer-events-none');
+                scrollToTopBtn.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+            } else {
+                scrollToTopBtn.classList.add('opacity-0', 'translate-y-10', 'pointer-events-none');
+                scrollToTopBtn.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+            }
+        });
+        scrollToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        window.onload = () => {
+            typeLoop();
+            initThree();
+        };
+    </script>
+</body>
+</html>

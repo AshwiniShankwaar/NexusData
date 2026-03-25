@@ -1,0 +1,32 @@
+[
+  {
+    "intent": "Count the number of active users.",
+    "sql": "SELECT\n  COUNT(id)\nFROM users\nWHERE\n  status = 'active';",
+    "tables": [
+      "users"
+    ],
+    "graph": {
+      "tables": [
+        "users"
+      ],
+      "joins": [],
+      "conditions": [
+        "status = 'active'",
+        "status",
+        "'active'"
+      ],
+      "aggregations": [
+        "COUNT"
+      ],
+      "groupings": [],
+      "orderings": [],
+      "nodes": [
+        {
+          "id": "users",
+          "type": "table"
+        }
+      ],
+      "edges": []
+    }
+  }
+]

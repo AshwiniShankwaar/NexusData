@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusData</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-app: #0e0e11;
+            --bg-panel: #161618;
+            --bg-surface: #1c1c1f;
+            --bg-surface-hover: #232326;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-strong: rgba(255,255,255,0.15);
+            --text-primary: #f3f3f4;
+            --text-secondary: #a1a1a6;
+            --text-tertiary: #71717a;
+            --accent-color: #6366f1;
+            --accent-glow: rgba(99,102,241,0.15);
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        /* Frost Light theme overrides */
+        body.theme-frost {
+            --bg-app: #f4f4f5;
+            --bg-panel: #ffffff;
+            --bg-surface: #f0f0f3;
+            --bg-surface-hover: #e4e4e7;
+            --border-subtle: rgba(0,0,0,0.08);
+            --border-strong: rgba(0,0,0,0.15);
+            --text-primary: #18181b;
+            --text-secondary: #52525b;
+            --text-tertiary: #a1a1aa;
+        }
+        /* Midnight theme overrides */
+        body.theme-midnight {
+            --bg-app: #020209;
+            --bg-panel: #0a0a14;
+            --bg-surface: #101020;
+            --bg-surface-hover: #181830;
+            --border-subtle: rgba(120,120,255,0.10);
+            --border-strong: rgba(120,120,255,0.20);
+            --accent-color: #818cf8;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        .font-mono { font-family: var(--font-mono); }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--bg-surface-hover); border-radius: 4px; }
+
+        .panel-border { box-shadow: inset -1px 0 0 0 var(--border-subtle); }
+        .surface-border { box-shadow: inset 0 0 0 1px var(--border-subtle); }
+        .surface-border-bottom { border-bottom: 1px solid var(--border-subtle); }
+        .surface-border-top { box-shadow: inset 0 1px 0 0 var(--border-subtle); }
+
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.2,0,0,1), width 0.3s cubic-bezier(0.2,0,0,1);
+            width: 260px;
+        }
+        .sidebar.closed { width: 0; transform: translateX(-100%); overflow: hidden; }
+
+        .composer-container {
+            background: var(--bg-panel);
+            box-shadow: inset 0 0 0 1px var(--border-subtle), 0 8px 24px rgba(0,0,0,0.4);
+            border-radius: 12px;
+            transition: box-shadow 0.2s ease;
+        }
+        .composer-container:focus-within {
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25), 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .msg-user {
+            background: var(--bg-surface);
+            box-shadow: inset 0 0 0 1px var(--border-subtle);
+        }
+        .terminal-log {
+            background: #0d0d0f;
+            border-radius: 8px;
+        }
+        .btn-icon {
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+        }
+        .btn-icon:hover {
+            color: var(--text-primary);
+            background: var(--bg-surface-hover);
+        }
+        .auth-bg {
+            background-color: var(--bg-app);
+            background-image: radial-gradient(circle at 50% 0%, var(--bg-panel) 0%, transparent 70%);
+        }
+        .settings-tab-btn.active {
+            background: var(--bg-surface-hover);
+            color: white;
+            box-shadow: inset 0 0 0 1px var(--border-subtle);
+        }
+        .input-dark {
+            background: #0e0e11;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 13px;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-dark:focus { border-color: rgba(255,255,255,0.35); outline: none; }
+        body.theme-frost .input-dark { background: #fff; color: #18181b; border-color: rgba(0,0,0,0.15); }
+
+        /* Phase timeline */
+        .phase-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-tertiary); }
+        .phase-item.done { color: var(--text-secondary); }
+        .phase-item.active { color: var(--accent-color); }
+        .phase-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); flex-shrink: 0; }
+        .phase-item.done .phase-dot { background: #22c55e; }
+        .phase-item.active .phase-dot { background: var(--accent-color); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+        /* Thought section (collapsible, shown after response) */
+        .thought-toggle-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-tertiary); background: none; border: none; cursor: pointer; padding: 2px 0; transition: color 0.15s; user-select: none; }
+        .thought-toggle-btn:hover { color: var(--text-secondary); }
+        .thought-content { margin-top: 8px; padding: 10px 12px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; }
+        .thought-chevron { transition: transform 0.2s ease; flex-shrink: 0; }
+        .thought-chevron.open { transform: rotate(180deg); }
+        body.theme-frost .thought-content { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+
+        /* SQL block */
+        .sql-block { background: #0d0d0f; border-radius: 8px; overflow-x: auto; position: relative; }
+        .sql-block pre { padding: 12px 16px; font-size: 11px; font-family: var(--font-mono); color: #a5f3fc; white-space: pre-wrap; word-break: break-all; }
+
+        /* Results table */
+        .result-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .result-table th { background: var(--bg-surface); color: var(--text-secondary); font-weight: 600; padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+        .result-table td { padding: 5px 10px; border-bottom: 1px solid var(--border-subtle); color: var(--text-primary); white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+        .result-table tr:hover td { background: var(--bg-surface-hover); }
+
+        /* Conversation item */
+        .conv-item { padding: 6px 8px; border-radius: 6px; cursor: pointer; transition: background 0.1s; display: flex; align-items: center; justify-content: space-between; group: true; }
+        .conv-item:hover { background: var(--bg-surface-hover); }
+        .conv-item.active { background: var(--bg-surface); }
+        .conv-item-del { opacity: 0; transition: opacity 0.15s; color: var(--text-tertiary); }
+        .conv-item:hover .conv-item-del { opacity: 1; }
+
+        /* Toast */
+        #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; min-width: 240px; max-width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; animation: slideIn 0.2s ease; }
+        .toast-success { background: #14532d; color: #86efac; border: 1px solid #15803d; }
+        .toast-error { background: #450a0a; color: #fca5a5; border: 1px solid #b91c1c; }
+        .toast-info { background: #1e3a5f; color: #93c5fd; border: 1px solid #2563eb; }
+        @keyframes slideIn { from{transform:translateX(20px);opacity:0;} to{transform:translateX(0);opacity:1;} }
+
+        /* One-time key modal */
+        #one-time-modal, #db-picker-modal {
+            display: none;
+        }
+        /* Spinner */
+        .spinner { width: 14px; height: 14px; border: 2px solid var(--border-subtle); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* user message edit hover */
+        .msg-user-wrap:hover .msg-edit-btn { opacity: 1; }
+        .msg-edit-btn { opacity: 0; transition: opacity 0.15s; }
+
+        /* Clarification alert */
+        .clarification-alert { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); border-radius: 8px; padding: 12px 16px; }
+    </style>
+</head>
+<body class="h-screen flex text-sm">
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<!-- ONE-TIME KEY MODAL -->
+<div id="one-time-modal" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="otm-backdrop"></div>
+    <div class="bg-[#161618] border border-white/10 w-full max-w-md rounded-xl shadow-2xl relative z-10 p-6">
+        <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="key" class="w-4 h-4 text-amber-400"></i>
+            <h3 class="text-[13px] font-semibold text-white">API Key Created</h3>
+        </div>
+        <p class="text-xs text-[#a1a1a6] mb-3">Copy this key now. It will not be shown again.</p>
+        <div class="flex items-center gap-2 bg-[#0e0e11] rounded-lg p-3 border border-amber-500/20 mb-4">
+            <code id="otm-key-text" class="text-amber-300 text-xs font-mono flex-1 break-all"></code>
+            <button id="otm-copy-btn" class="btn-icon p-1.5 rounded-md flex-shrink-0" title="Copy">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+        </div>
+        <button id="otm-close" class="w-full bg-white hover:bg-gray-100 text-black font-medium py-2 rounded-lg text-sm">Done</button>
+    </div>
+</div>
+
+<!-- DB PICKER MODAL -->
+<div id="db-picker-modal" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="dpm-backdrop"></div>
+    <div class="bg-[#161618] border border-white/10 w-full max-w-sm rounded-xl shadow-2xl relative z-10 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-[13px] font-semibold text-white">Select Database</h3>
+            <button id="dpm-close" class="btn-icon p-1 rounded-md"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div id="dpm-list" class="space-y-2 mb-3"></div>
+        <button id="dpm-add-conn" class="w-full border border-dashed border-white/10 rounded-lg py-2.5 text-gray-500 hover:text-white hover:border-white/20 transition-all text-xs">
+            + Add New Connection
+        </button>
+    </div>
+</div>
+
+<!-- Analysis Modal -->
+<div id="analysis-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden">
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-2xl w-full max-w-2xl p-6 flex flex-col gap-4 max-h-[80vh] overflow-y-auto" style="background:var(--bg-panel,#161618);border-color:rgba(255,255,255,0.1);">
+        <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-lg">📊 Analyse Data</h2>
+            <button onclick="document.getElementById('analysis-modal').classList.add('hidden')" class="text-[var(--text-muted)] hover:text-white">✕</button>
+        </div>
+        <div class="flex gap-2">
+            <input id="analyse-query" type="text" placeholder="Ask about the data... (e.g. 'show top 5 by revenue as a bar chart')"
+                   class="flex-1 bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 input-dark"/>
+            <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input type="checkbox" id="analyse-chart" class="rounded"> Chart
+            </label>
+            <button id="analyse-run-btn" onclick="runAnalysis()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-medium transition-colors">Run</button>
+        </div>
+        <div id="analyse-result" class="text-sm text-[var(--text-muted)]">Enter a question above to analyse the last query result.</div>
+    </div>
+</div>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen" class="fixed inset-0 z-[100] auth-bg flex items-center justify-center p-4">
+    <div class="w-full max-w-[380px] bg-[#161618] surface-border p-8 rounded-2xl shadow-2xl relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+        <div class="mb-8 flex items-center gap-3">
+            <div class="w-8 h-8 bg-indigo-500 rounded flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30">N</div>
+            <div>
+                <h2 class="text-lg font-semibold text-white leading-tight">NexusData</h2>
+                <p class="text-[#71717a] text-xs" id="auth-subtitle">Sign in to your workspace</p>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="space-y-4">
+            <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[#a1a1a6]">Email</label>
+                <input type="email" id="login-email" required class="input-dark" placeholder="you@example.com" autocomplete="email">
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[#a1a1a6]">Password</label>
+                <input type="password" id="login-password" required class="input-dark" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button type="submit" id="login-submit-btn" class="w-full bg-white hover:bg-gray-100 text-black font-medium py-2.5 rounded-lg transition-colors mt-2 text-sm flex items-center justify-center gap-2">
+                Sign In
+            </button>
+            <p class="text-center text-xs text-[#71717a]">
+                No account? <a href="#" id="go-register" class="text-indigo-400 hover:text-indigo-300">Register</a>
+            </p>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="space-y-4 hidden">
+            <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[#a1a1a6]">Full Name</label>
+                <input type="text" id="reg-name" required class="input-dark" placeholder="Your Name">
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[#a1a1a6]">Email</label>
+                <input type="email" id="reg-email" required class="input-dark" placeholder="you@example.com" autocomplete="email">
+            </div>
+            <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[#a1a1a6]">Password</label>
+                <input type="password" id="reg-password" required minlength="8" class="input-dark" placeholder="Min 8 characters" autocomplete="new-password">
+            </div>
+            <button type="submit" id="reg-submit-btn" class="w-full bg-white hover:bg-gray-100 text-black font-medium py-2.5 rounded-lg transition-colors mt-2 text-sm flex items-center justify-center gap-2">
+                Create Account
+            </button>
+            <p class="text-center text-xs text-[#71717a]">
+                Have an account? <a href="#" id="go-login" class="text-indigo-400 hover:text-indigo-300">Sign in</a>
+            </p>
+        </form>
+    </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app-content" class="h-screen flex w-full opacity-0 pointer-events-none transition-opacity duration-500 overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="sidebar bg-[#161618] panel-border flex flex-col h-full z-40 shrink-0">
+        <div class="h-14 flex items-center justify-between px-4 surface-border-bottom">
+            <div class="flex items-center gap-2.5 select-none">
+                <div class="w-6 h-6 bg-indigo-500 rounded border border-indigo-400/20 flex items-center justify-center font-bold text-white text-xs">N</div>
+                <span class="font-semibold text-[13px] text-gray-200">NexusData</span>
+            </div>
+            <button id="close-sidebar" class="btn-icon p-1.5 rounded-md lg:hidden" title="Collapse">
+                <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="p-3">
+            <!-- DB Selector -->
+            <div id="db-selector" class="flex items-center justify-between p-2 rounded-lg bg-[#1c1c1f] surface-border mb-3 cursor-pointer hover:bg-[#232326] transition-colors">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="database" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <div class="flex flex-col">
+                        <span class="text-xs font-medium text-gray-200 leading-none mb-1" id="active-db-label">No database</span>
+                        <span class="text-[10px] text-gray-500 font-mono leading-none" id="active-db-dialect">–</span>
+                    </div>
+                </div>
+                <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-gray-500"></i>
+            </div>
+
+            <button id="new-chat-btn" class="w-full flex items-center gap-2 bg-[#1c1c1f] text-gray-200 hover:text-white hover:bg-[#232326] surface-border font-medium py-2 px-3 rounded-lg transition-colors text-xs">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> New Chat
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 py-2">
+            <div class="text-[11px] font-medium text-[#71717a] mb-2 px-2">Conversations</div>
+            <div id="conv-list" class="space-y-0.5"></div>
+        </div>
+
+        <div class="p-3 surface-border-top bg-[#161618]">
+            <button id="open-settings" class="w-full flex items-center gap-2 p-2 hover:bg-[#232326] rounded-md text-[#a1a1a6] hover:text-white transition-colors text-xs mb-1">
+                <i data-lucide="settings" class="w-4 h-4"></i> Settings
+            </button>
+            <div class="flex items-center gap-2.5 p-2 rounded-md hover:bg-[#232326] transition-colors group cursor-default">
+                <div class="w-7 h-7 rounded bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-xs font-medium text-white shadow-sm" id="avatar-initial">?</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-xs font-medium text-gray-200 truncate" id="sidebar-display-name">Loading…</div>
+                    <div class="text-[10px] text-gray-500 truncate" id="sidebar-email"></div>
+                </div>
+                <button id="logout-trigger" class="opacity-0 group-hover:opacity-100 btn-icon p-1.5 rounded-md text-red-400 hover:text-red-300" title="Logout">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN VIEW -->
+    <main class="flex-1 flex flex-col relative min-w-0 bg-[#0e0e11]">
+
+        <!-- Topbar -->
+        <header class="h-14 flex items-center justify-between px-5 surface-border-bottom shrink-0 bg-[#0e0e11]/90 backdrop-blur-sm z-30">
+            <div class="flex items-center gap-3">
+                <button id="open-sidebar" class="btn-icon p-1.5 rounded-md lg:hidden">
+                    <i data-lucide="menu" class="w-4 h-4"></i>
+                </button>
+                <h1 class="font-medium text-[13px] text-gray-200" id="chat-title">New Chat</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="exec-time-badge" class="hidden items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 border border-green-500/20">
+                    <div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
+                    <span class="text-[10px] font-mono text-green-500/90" id="exec-time-val">–</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-40">
+            <div class="welcome-view max-w-2xl mx-auto mt-12 mb-8 text-center md:text-left">
+                <div class="w-12 h-12 rounded-xl bg-[#1c1c1f] surface-border flex items-center justify-center mb-6 shadow-sm mx-auto md:mx-0">
+                    <i data-lucide="terminal" class="w-5 h-5 text-gray-400"></i>
+                </div>
+                <h2 class="text-xl font-medium text-gray-100 mb-2">Nexus Analytical Engine</h2>
+                <p class="text-sm text-[#71717a] mb-8 leading-relaxed">Connect to your data warehouse to generate SQL, analyze schemas, or process datasets.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="p-4 bg-[#161618] surface-border hover:border-gray-600 rounded-lg cursor-pointer transition-colors group" onclick="setInput('Show top 10 users by total spend')">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <i data-lucide="database" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span class="font-medium text-[13px] text-gray-200 group-hover:text-white">Query Generation</span>
+                        </div>
+                        <p class="text-[11px] text-[#71717a]">"Top 10 users by total spend."</p>
+                    </div>
+                    <div class="p-4 bg-[#161618] surface-border hover:border-gray-600 rounded-lg cursor-pointer transition-colors group" onclick="setInput('How many rows are in each table?')">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <i data-lucide="bar-chart" class="w-3.5 h-3.5 text-emerald-400"></i>
+                            <span class="font-medium text-[13px] text-gray-200 group-hover:text-white">Schema Analysis</span>
+                        </div>
+                        <p class="text-[11px] text-[#71717a]">"How many rows in each table?"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 md:px-8 bg-gradient-to-t from-[#0e0e11] via-[#0e0e11]/95 to-transparent z-20">
+            <div class="max-w-3xl mx-auto relative">
+                <div class="composer-container p-1 flex flex-col relative">
+                    <div class="flex items-center gap-2 px-3 pt-2">
+                        <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
+                            <i data-lucide="sparkles" class="w-3 h-3 text-indigo-400"></i>
+                            <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-tight" id="active-model-name">Loading…</span>
+                        </div>
+                        <div class="w-px h-3 bg-white/10"></div>
+                        <span class="text-[10px] text-gray-500 font-mono" id="composer-db-name">No DB</span>
+                    </div>
+                    <textarea id="user-input" rows="1" placeholder="Ask anything about your data…" class="w-full bg-transparent border-none focus:ring-0 px-3 pt-2 pb-2 resize-none text-gray-200 placeholder:text-[#71717a] text-[13px] leading-relaxed min-h-[44px] max-h-[200px]"></textarea>
+                    <div class="flex items-center justify-between px-2 pb-2">
+                        <span class="text-[10px] text-[#71717a] font-mono select-none px-1">Shift+Enter = newline</span>
+                        <button id="send-btn" class="bg-white hover:bg-gray-100 text-black p-1.5 px-3 rounded-md flex items-center gap-1.5 transition-colors font-medium text-xs">
+                            <span>Run</span>
+                            <i data-lucide="corner-down-left" class="w-3.5 h-3.5 text-gray-500"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" class="fixed inset-0 z-[60] flex items-center justify-center hidden p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" id="settings-backdrop"></div>
+    <div class="bg-[#161618] border border-white/10 w-full max-w-3xl rounded-xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="p-4 border-b border-white/5 flex justify-between items-center bg-[#1c1c1f]">
+            <div class="flex items-center gap-2">
+                <i data-lucide="settings" class="w-4 h-4 text-indigo-400"></i>
+                <h3 class="text-[13px] font-semibold text-gray-200">Settings</h3>
+            </div>
+            <button id="close-settings" class="btn-icon p-1 rounded-md hover:bg-white/5"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="flex flex-1 overflow-hidden min-h-[500px]">
+            <!-- Sidebar Nav -->
+            <div class="w-48 bg-[#161618] border-r border-white/5 p-2 space-y-1">
+                <button class="w-full text-left px-3 py-2 rounded-md text-[12px] font-medium active settings-tab-btn flex items-center gap-2" data-target="set-profile">
+                    <i data-lucide="user" class="w-3.5 h-3.5"></i> Profile
+                </button>
+                <button class="w-full text-left px-3 py-2 rounded-md text-[12px] font-medium text-[#a1a1a6] hover:bg-[#232326] settings-tab-btn flex items-center gap-2" data-target="set-security">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Security
+                </button>
+                <button class="w-full text-left px-3 py-2 rounded-md text-[12px] font-medium text-[#a1a1a6] hover:bg-[#232326] settings-tab-btn flex items-center gap-2" data-target="set-model">
+                    <i data-lucide="brain-circuit" class="w-3.5 h-3.5"></i> Model Config
+                </button>
+                <button class="w-full text-left px-3 py-2 rounded-md text-[12px] font-medium text-[#a1a1a6] hover:bg-[#232326] settings-tab-btn flex items-center gap-2" data-target="set-database">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i> Databases
+                </button>
+                <button class="w-full text-left px-3 py-2 rounded-md text-[12px] font-medium text-[#a1a1a6] hover:bg-[#232326] settings-tab-btn flex items-center gap-2" data-target="set-appearance">
+                    <i data-lucide="palette" class="w-3.5 h-3.5"></i> Appearance
+                </button>
+            </div>
+
+            <!-- Panes -->
+            <div class="flex-1 overflow-y-auto bg-[#0e0e11] p-6">
+
+                <!-- Profile Pane -->
+                <div id="set-profile" class="settings-pane space-y-6">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">User Information</h4>
+                    <div class="space-y-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">Full Name</label>
+                            <input type="text" id="pref-display-name" class="input-dark">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">Email Address</label>
+                            <input type="email" id="pref-email" class="input-dark">
+                        </div>
+                        <button id="save-profile-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors">
+                            Save Profile
+                        </button>
+                    </div>
+                    <div class="mt-8 pt-6 border-t border-[var(--border)]">
+                        <h3 class="text-sm font-semibold text-red-400 mb-2">Danger Zone</h3>
+                        <p class="text-xs text-[var(--text-muted)] mb-3">Delete all conversations and exported files. Knowledge base is preserved.</p>
+                        <button id="clear-memory-btn" class="px-4 py-2 rounded-lg bg-red-900/30 border border-red-700 text-red-400 text-sm hover:bg-red-900/50 transition-colors">
+                            Clear All Conversations &amp; Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Security Pane -->
+                <div id="set-security" class="settings-pane space-y-6 hidden">
+                    <div>
+                        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Change Password</h4>
+                        <div class="space-y-3">
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-medium text-gray-500">Current Password</label>
+                                <input type="password" id="chpw-current" class="input-dark" placeholder="Current password">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-medium text-gray-500">New Password</label>
+                                <input type="password" id="chpw-new" class="input-dark" placeholder="Min 8 characters">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-medium text-gray-500">Confirm New Password</label>
+                                <input type="password" id="chpw-confirm" class="input-dark" placeholder="Re-enter new password">
+                            </div>
+                            <button id="change-pw-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors">
+                                Update Password
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-white/5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">API Keys</h4>
+                            <button id="create-api-key-btn" class="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Create new key
+                            </button>
+                        </div>
+                        <div id="api-keys-list" class="space-y-2">
+                            <div class="text-xs text-gray-500">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Config Pane -->
+                <div id="set-model" class="settings-pane space-y-6 hidden">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Inference Engine</h4>
+                    <div class="space-y-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">Provider</label>
+                            <select id="mc-provider" class="input-dark bg-[#0e0e11]">
+                                <option value="openai">OpenAI</option>
+                                <option value="google">Google</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="openrouter">OpenRouter</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">Model</label>
+                            <select id="mc-model" class="input-dark bg-[#0e0e11]"></select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">API Key</label>
+                            <input type="password" id="mc-api-key" class="input-dark" placeholder="Leave blank to keep existing">
+                        </div>
+                        <button id="save-model-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-md text-xs font-medium transition-colors">
+                            Save Model Config
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Database Pane -->
+                <div id="set-database" class="settings-pane space-y-6 hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Connections</h4>
+                    </div>
+                    <div id="conn-list-settings" class="space-y-3"></div>
+                    <div id="edit-conn-form" class="space-y-2 pt-4 border-t border-white/5"></div>
+                    <div id="add-conn-form" class="hidden space-y-3 pt-4 border-t border-white/5">
+                        <h5 class="text-xs font-semibold text-gray-400">Add Connection</h5>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">Name</label>
+                            <input type="text" id="new-conn-name" class="input-dark" placeholder="e.g. Production DB">
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-medium text-gray-500">URI</label>
+                            <input type="text" id="new-conn-uri" class="input-dark" placeholder="postgresql://user:pass@host:5432/db">
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="save-conn-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-md text-xs font-medium">Save Connection</button>
+                            <button id="cancel-conn-btn" class="text-gray-400 hover:text-white px-4 py-2 rounded-md text-xs font-medium">Cancel</button>
+                        </div>
+                    </div>
+                    <button id="show-add-conn-btn" class="w-full border border-dashed border-white/10 rounded-lg py-3 text-gray-500 hover:text-white hover:border-white/20 transition-all text-xs">
+                        + Add New Connection
+                    </button>
+                </div>
+
+                <!-- Appearance Pane -->
+                <div id="set-appearance" class="settings-pane space-y-6 hidden">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Interface Style</h4>
+                    <div class="grid grid-cols-3 gap-3" id="theme-selector">
+                        <div class="theme-card p-3 bg-indigo-500/10 border border-indigo-500 rounded-lg text-center cursor-pointer" data-theme="">
+                            <div class="w-full h-12 bg-[#0e0e11] rounded mb-2 shadow-inner"></div>
+                            <span class="text-[11px] font-medium">Onyx Dark</span>
+                        </div>
+                        <div class="theme-card p-3 bg-[#161618] border border-white/5 rounded-lg text-center cursor-pointer hover:border-white/20" data-theme="theme-frost">
+                            <div class="w-full h-12 bg-gray-200 rounded mb-2"></div>
+                            <span class="text-[11px] font-medium text-gray-400">Frost Light</span>
+                        </div>
+                        <div class="theme-card p-3 bg-[#161618] border border-white/5 rounded-lg text-center cursor-pointer hover:border-white/20" data-theme="theme-midnight">
+                            <div class="w-full h-12 bg-[#020209] rounded mb-2"></div>
+                            <span class="text-[11px] font-medium text-gray-400">Midnight</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-white/5 bg-[#1c1c1f] flex justify-end gap-3">
+            <button id="close-settings-footer" class="px-4 py-2 rounded-md text-[12px] font-medium text-gray-400 hover:text-white">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const API_BASE = window.location.origin;
+const STORAGE_KEY = 'nexus_token';
+const EXPIRY_KEY  = 'nexus_expires';
+
+// ── App State ─────────────────────────────────────────────────────────────────
+let _currentUser = null;
+let _connections = [];
+let _activeConnId = null;
+let _conversations = [];
+let _activeConvId = null;
+let _modelConfig = null;
+let _availableProviders = {};
+let _rerunMode = false;
+let _streaming = false;
+let _editingConnId = null;
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3000) {
+    const icons = { success: 'check-circle', error: 'alert-circle', info: 'info' };
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.innerHTML = `<i data-lucide="${icons[type] || 'info'}" style="width:14px;height:14px;flex-shrink:0;"></i><span>${escHtml(msg)}</span>`;
+    document.getElementById('toast-container').appendChild(el);
+    lucide.createIcons({ nodes: [el] });
+    setTimeout(() => el.remove(), duration);
+}
+
+// ── HTML escape ───────────────────────────────────────────────────────────────
+function escHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+async function api(method, path, body, opts = {}) {
+    const token = localStorage.getItem(STORAGE_KEY);
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    let res;
+    try {
+        res = await fetch(API_BASE + path, {
+            method,
+            headers,
+            body: body != null ? JSON.stringify(body) : undefined,
+            ...opts,
+        });
+    } catch (e) {
+        if (!opts.signal || !opts.signal.aborted) {
+            toast('Connection error. Is the server running?', 'error', 5000);
+        }
+        throw e;
+    }
+    if (res.status === 401) {
+        clearToken();
+        showLogin();
+        throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const d = await res.json(); detail = d.detail || JSON.stringify(d); } catch {}
+        toast(detail, 'error', 5000);
+        throw new Error(detail);
+    }
+    return res.json();
+}
+
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+function clearToken() {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(EXPIRY_KEY);
+}
+function storeToken(token, expiresAt) {
+    localStorage.setItem(STORAGE_KEY, token);
+    localStorage.setItem(EXPIRY_KEY, expiresAt);
+}
+function tokenValid() {
+    const token = localStorage.getItem(STORAGE_KEY);
+    const exp = localStorage.getItem(EXPIRY_KEY);
+    if (!token) return false;
+    if (exp && new Date(exp) <= new Date()) return false;
+    return true;
+}
+
+// ── Show/hide screens ─────────────────────────────────────────────────────────
+function showLogin() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('app-content').classList.add('opacity-0','pointer-events-none');
+}
+function showApp() {
+    document.getElementById('auth-screen').style.display = 'none';
+    const app = document.getElementById('app-content');
+    app.classList.remove('opacity-0','pointer-events-none');
+    app.style.opacity = '1';
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function boot() {
+    // Check if app has been configured via CLI first
+    try {
+        const status = await fetch(`${API_BASE}/v1/system/status`).then(r => r.json());
+        if (!status.configured) {
+            document.getElementById('auth-screen').innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen gap-6 text-center px-4">
+                    <div class="text-5xl">⚙️</div>
+                    <h1 class="text-2xl font-bold">Setup Required</h1>
+                    <p class="text-[var(--text-muted)] max-w-md">
+                        NexusData needs to be configured before use.<br>
+                        Run <code class="bg-[var(--bg-tertiary)] px-2 py-1 rounded font-mono text-sm">python nexus_cli.py</code>
+                        in your terminal to complete setup, then refresh this page.
+                    </p>
+                </div>`;
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('app').classList.add('hidden');
+            return;
+        }
+    } catch (e) { /* ignore — server may be starting */ }
+
+    if (!tokenValid()) { showLogin(); return; }
+    try {
+        _currentUser = await api('GET', '/auth/me');
+        applyUserToUI();
+        showApp();
+        await Promise.all([loadConnections(), loadConversations(), loadModelConfig()]);
+        // Re-render conversation list now that both connections and conversations are loaded
+        // so DB badges are populated correctly
+        renderConvList();
+        applyTheme((_currentUser.settings || {}).theme || '');
+    } catch (e) {
+        showLogin();
+    }
+}
+
+function applyUserToUI() {
+    if (!_currentUser) return;
+    const name = _currentUser.name || 'User';
+    document.getElementById('sidebar-display-name').textContent = name;
+    document.getElementById('sidebar-email').textContent = _currentUser.email || '';
+    document.getElementById('avatar-initial').textContent = name.charAt(0).toUpperCase();
+}
+
+// ── Connections ───────────────────────────────────────────────────────────────
+async function loadConnections() {
+    try {
+        const data = await api('GET', '/v1/connections');
+        _connections = data.connections || [];
+        updateDBSelector();
+    } catch {}
+}
+
+function updateDBSelector() {
+    const active = _connections.find(c => c.id === _activeConnId) || _connections[0] || null;
+    if (active && !_activeConnId) _activeConnId = active.id;
+    const label = document.getElementById('active-db-label');
+    const dialect = document.getElementById('active-db-dialect');
+    const composerDb = document.getElementById('composer-db-name');
+    if (active) {
+        label.textContent = active.name;
+        dialect.textContent = active.dialect || detectDialect(active.uri_masked || '');
+        composerDb.textContent = 'DB: ' + active.name;
+    } else {
+        label.textContent = 'No database';
+        dialect.textContent = '–';
+        composerDb.textContent = 'No DB';
+    }
+}
+
+function detectDialect(uri) {
+    if (!uri) return '–';
+    const u = uri.toLowerCase();
+    if (u.startsWith('postgres')) return 'PostgreSQL';
+    if (u.startsWith('mysql')) return 'MySQL';
+    if (u.startsWith('sqlite')) return 'SQLite';
+    if (u.startsWith('mssql')) return 'MSSQL';
+    if (u.startsWith('duckdb')) return 'DuckDB';
+    return '–';
+}
+
+// ── Conversations ─────────────────────────────────────────────────────────────
+async function loadConversations() {
+    try {
+        const data = await api('GET', '/v1/conversations');
+        _conversations = data.conversations || [];
+        renderConvList();
+    } catch {}
+}
+
+function renderConvList() {
+    const container = document.getElementById('conv-list');
+    if (!_conversations.length) {
+        container.innerHTML = '<div class="text-[11px] text-gray-600 px-2 py-1">No conversations yet</div>';
+        return;
+    }
+    container.innerHTML = _conversations.map(c => {
+        const title = (c.title || 'New Chat').substring(0, 40) + ((c.title || '').length > 40 ? '…' : '');
+        const active = c.id === _activeConvId ? 'active' : '';
+        const dbConn = _connections.find(conn => conn.id === c.db_conn_id);
+        const dbBadge = dbConn
+            ? `<span class="text-[9px] text-indigo-400/60 truncate block" title="${escHtml(dbConn.name)}">${escHtml(dbConn.name)}</span>`
+            : '';
+        return `<div class="conv-item ${active}" data-id="${escHtml(c.id)}">
+            <div class="flex flex-col flex-1 min-w-0 mr-1">
+                <span class="text-[12px] text-gray-300 truncate" title="${escHtml(c.title)}">${escHtml(title)}</span>
+                ${dbBadge}
+            </div>
+            <button class="conv-item-del btn-icon p-1 rounded" data-conv-del="${escHtml(c.id)}" title="Delete">
+                <i data-lucide="trash-2" style="width:11px;height:11px;"></i>
+            </button>
+        </div>`;
+    }).join('');
+    lucide.createIcons({ nodes: [container] });
+}
+
+async function loadConversation(convId) {
+    _activeConvId = convId;
+    const conv = _conversations.find(c => c.id === convId);
+    document.getElementById('chat-title').textContent = conv ? conv.title : 'Chat';
+    // Restore the DB selector to match this conversation's database
+    if (conv && conv.db_conn_id) {
+        _activeConnId = conv.db_conn_id;
+        updateDBSelector();
+    }
+    renderConvList();
+    clearChatArea();
+    try {
+        const data = await api('GET', `/v1/conversations/${convId}/messages`);
+        const msgs = data.messages || [];
+        if (msgs.length) {
+            document.querySelector('.welcome-view')?.remove();
+        }
+        msgs.forEach(m => {
+            if (m.role === 'user') {
+                appendUserMsg(m.content, m.id, false);
+            } else {
+                // Merge stored result_json (rows, columns, warnings, etc.) with
+                // the saved sql and summary so the full table is restored on reload
+                const rj = m.result_json || {};
+                const fakeResult = {
+                    sql: m.sql_used || null,
+                    natural_language_summary: m.content,
+                    phase_timings: m.phase_timings || {},
+                    rows: rj.rows || [],
+                    columns: rj.columns || [],
+                    error: rj.error || null,
+                    anomaly_warnings: rj.anomaly_warnings || [],
+                    performance_hints: rj.performance_hints || [],
+                    is_clarification: rj.is_clarification || false,
+                    clarification_question: rj.clarification_question || null,
+                    from_cache: false,
+                };
+                appendBotMsg(fakeResult, m.id, false);
+            }
+        });
+        scrollChat();
+    } catch {}
+}
+
+function clearChatArea() {
+    const cm = document.getElementById('chat-messages');
+    cm.innerHTML = '';
+    document.getElementById('exec-time-badge').classList.add('hidden');
+    document.getElementById('chat-title').textContent = _conversations.find(c=>c.id===_activeConvId)?.title || 'New Chat';
+}
+
+// ── Model Config ──────────────────────────────────────────────────────────────
+async function loadModelConfig() {
+    try {
+        const data = await api('GET', '/v1/model-config');
+        _modelConfig = data;
+        _availableProviders = data.available_providers || {};
+        document.getElementById('active-model-name').textContent = (data.model_name || 'unknown').toUpperCase();
+    } catch {}
+}
+
+// ── Send message ──────────────────────────────────────────────────────────────
+function setInput(text) {
+    const ta = document.getElementById('user-input');
+    ta.value = text;
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+    ta.focus();
+}
+
+// ── Slash command handler (UI) ────────────────────────────────────────────────
+const _SLASH_HELP = `<div class="space-y-1 text-[12px] font-mono">
+<div class="text-indigo-400 font-semibold mb-2">Available Commands</div>
+<div><span class="text-white">/help</span> — show this help</div>
+<div><span class="text-white">/schema</span> — show database schema</div>
+<div><span class="text-white">/databases</span> — list saved DB connections</div>
+<div><span class="text-white">/clear-cache</span> — wipe semantic vector cache</div>
+<div><span class="text-white">/history</span> — show recent query history</div>
+<div><span class="text-white">/explain</span> — explain the last SQL query</div>
+<div><span class="text-white">/export csv</span> — export last result as CSV</div>
+<div><span class="text-white">/relations</span> — show table relationships</div>
+<div><span class="text-white">/update-table-info</span> — refresh schema metadata</div>
+</div>`;
+
+async function handleSlashCommand(cmd) {
+    const cm = document.getElementById('chat-messages');
+
+    // Render user command bubble
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg-user flex justify-end w-full max-w-3xl mx-auto mt-4';
+    userDiv.innerHTML = `<div class="bg-[#2a2a30] rounded-xl px-4 py-2 text-[13px] font-mono text-indigo-300 max-w-[80%]">${escHtml(cmd)}</div>`;
+    cm.appendChild(userDiv);
+    scrollChat();
+
+    // /help is handled client-side
+    if (cmd.trim().toLowerCase() === '/help') {
+        const botDiv = document.createElement('div');
+        botDiv.className = 'msg-agent flex flex-col items-start gap-2 w-full max-w-3xl mx-auto mt-4';
+        botDiv.innerHTML = `<div class="flex items-center gap-2 text-[11px] font-medium text-gray-500">
+            <i data-lucide="terminal" style="width:14px;height:14px;" class="text-indigo-400"></i><span>Nexus Engine</span></div>
+            <div class="bg-[#161618] border border-white/8 rounded-xl px-4 py-3">${_SLASH_HELP}</div>`;
+        cm.appendChild(botDiv);
+        lucide.createIcons({ nodes: [botDiv] });
+        scrollChat();
+        return;
+    }
+
+    // All other commands need an active conversation to have context (nd instance)
+    if (!_activeConvId) {
+        // Ensure we have a conversation for context
+        if (!_activeConnId) {
+            toast('Select a database first.', 'info');
+            openDBPicker();
+            return;
+        }
+        try {
+            const conv = await api('POST', '/v1/conversations', { db_conn_id: _activeConnId, title: 'New Chat' });
+            _conversations.unshift(conv);
+            _activeConvId = conv.id;
+            renderConvList();
+        } catch { return; }
+    }
+
+    // Show spinner
+    const botDiv = document.createElement('div');
+    const botId = 'cmd-' + Date.now();
+    botDiv.id = botId;
+    botDiv.className = 'msg-agent flex flex-col items-start gap-2 w-full max-w-3xl mx-auto mt-4';
+    botDiv.innerHTML = `<div class="flex items-center gap-2 text-[11px] font-medium text-gray-500">
+        <i data-lucide="terminal" style="width:14px;height:14px;" class="text-indigo-400"></i><span>Nexus Engine</span></div>
+        <div id="cmd-result-${botId}" class="bg-[#161618] border border-white/8 rounded-xl px-4 py-3 w-full">
+            <div class="spinner"></div></div>`;
+    cm.appendChild(botDiv);
+    lucide.createIcons({ nodes: [botDiv] });
+    scrollChat();
+
+    try {
+        const data = await api('POST', `/v1/conversations/${_activeConvId}/command`, { command: cmd });
+        const resultEl = document.getElementById(`cmd-result-${botId}`);
+        if (!resultEl) return;
+
+        if (data.result) {
+            // Command returned a QueryResult — render as full result
+            renderBotResult(`cmd-result-${botId}`, data.result, botId);
+        } else {
+            const text = data.output || '(no output)';
+            resultEl.innerHTML = `<pre class="text-[12px] text-gray-300 whitespace-pre-wrap font-mono">${escHtml(text)}</pre>`;
+        }
+        lucide.createIcons({ nodes: [botDiv] });
+        scrollChat();
+    } catch (e) {
+        const resultEl = document.getElementById(`cmd-result-${botId}`);
+        if (resultEl) resultEl.innerHTML = `<div class="text-red-400 text-[12px]">Command failed: ${escHtml(e.message || String(e))}</div>`;
+    }
+}
+
+async function handleSend() {
+    const ta = document.getElementById('user-input');
+    const text = ta.value.trim();
+    if (!text || _streaming) return;
+
+    // ── Slash commands ──────────────────────────────────────────────────────
+    if (text.startsWith('/')) {
+        ta.value = '';
+        ta.style.height = 'auto';
+        await handleSlashCommand(text);
+        return;
+    }
+
+    if (!_activeConvId) {
+        // Create conversation first
+        if (!_activeConnId) {
+            if (!_connections.length) {
+                openSettings('set-database');
+                toast('Add a database connection first.', 'info');
+            } else {
+                openDBPicker();
+                toast('Select a database first.', 'info');
+            }
+            return;
+        }
+        try {
+            const conv = await api('POST', '/v1/conversations', { db_conn_id: _activeConnId, title: 'New Chat' });
+            _conversations.unshift(conv);
+            _activeConvId = conv.id;
+            renderConvList();
+            document.getElementById('chat-title').textContent = conv.title;
+        } catch { return; }
+    }
+
+    ta.value = '';
+    ta.style.height = 'auto';
+
+    // Remove welcome view
+    document.querySelector('.welcome-view')?.remove();
+
+    const msgId = 'msg-' + Date.now();
+    appendUserMsg(text, msgId, true);
+    scrollChat();
+
+    const endpoint = _rerunMode
+        ? `/v1/conversations/${_activeConvId}/rerun`
+        : `/v1/conversations/${_activeConvId}/ask`;
+    _rerunMode = false;
+
+    await streamAsk(endpoint, text, msgId);
+}
+
+async function streamAsk(endpoint, query, userMsgId) {
+    _streaming = true;
+    document.getElementById('send-btn').disabled = true;
+
+    const botMsgId = 'bot-' + Date.now();
+    const phaseContainerId = 'phases-' + botMsgId;
+    const resultContainerId = 'result-' + botMsgId;
+
+    // Insert bot message shell
+    const shell = document.createElement('div');
+    shell.id = botMsgId;
+    shell.className = 'msg-agent flex flex-col items-start gap-2 w-full max-w-3xl mx-auto mt-6';
+    shell.innerHTML = `
+        <div class="flex items-center gap-2 text-[11px] font-medium text-gray-500">
+            <i data-lucide="cpu" style="width:14px;height:14px;" class="text-indigo-400"></i>
+            <span>Nexus Engine</span>
+            <div class="spinner ml-1" id="spinner-${botMsgId}"></div>
+        </div>
+        <div class="w-full space-y-2">
+            <div id="${phaseContainerId}" class="space-y-1"></div>
+            <div id="${resultContainerId}"></div>
+        </div>
+    `;
+    document.getElementById('chat-messages').appendChild(shell);
+    lucide.createIcons({ nodes: [shell] });
+    scrollChat();
+
+    const token = localStorage.getItem(STORAGE_KEY);
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+        const res = await fetch(API_BASE + endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ query }),
+        });
+
+        if (res.status === 401) { clearToken(); showLogin(); return; }
+        if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try { const d = await res.json(); detail = d.detail || detail; } catch {}
+            renderBotError(resultContainerId, detail);
+            return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                    currentEvent = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                    const raw = line.slice(6).trim();
+                    let data;
+                    try { data = JSON.parse(raw); } catch { continue; }
+
+                    if (currentEvent === 'phase') {
+                        updatePhaseTimeline(phaseContainerId, data.phase, data.elapsed_ms, true);
+                    } else if (currentEvent === 'result') {
+                        updatePhaseTimeline(phaseContainerId, null, null, false, data.phase_timings);
+                        renderBotResult(resultContainerId, data, botMsgId);
+                        // Collapse phases + SQL into a thought section, hidden by default
+                        finalizeThoughtSection(phaseContainerId, 'thought-' + botMsgId, data.sql);
+                        // Update conversation title in sidebar
+                        if (data.message_id) {
+                            await loadConversations();
+                        }
+                        // Show exec time
+                        if (data.execution_ms != null) {
+                            document.getElementById('exec-time-val').textContent = Math.round(data.execution_ms) + 'ms';
+                            document.getElementById('exec-time-badge').classList.remove('hidden');
+                            document.getElementById('exec-time-badge').style.display = 'flex';
+                        }
+                    } else if (currentEvent === 'error') {
+                        renderBotError(resultContainerId, data.message || 'Unknown error');
+                    } else if (currentEvent === 'done') {
+                        if (data.phase_timings) {
+                            updatePhaseTimeline(phaseContainerId, null, null, false, data.phase_timings);
+                        }
+                    }
+                    currentEvent = '';
+                }
+            }
+        }
+    } catch (e) {
+        if (e.message !== 'Unauthorized') {
+            renderBotError(resultContainerId, e.message || 'Stream error');
+        }
+    } finally {
+        const spinner = document.getElementById('spinner-' + botMsgId);
+        if (spinner) spinner.remove();
+        _streaming = false;
+        document.getElementById('send-btn').disabled = false;
+        scrollChat();
+    }
+}
+
+// ── Phase Timeline ────────────────────────────────────────────────────────────
+const _livePhases = {};
+function updatePhaseTimeline(containerId, phase, elapsedMs, live, finalTimings) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (live && phase) {
+        _livePhases[containerId] = _livePhases[containerId] || [];
+        const existing = _livePhases[containerId].find(p => p.name === phase);
+        if (!existing) _livePhases[containerId].push({ name: phase, ms: elapsedMs });
+        // Mark previous as done, current as active
+        _livePhases[containerId].forEach((p, i) => {
+            p.status = (i === _livePhases[containerId].length - 1) ? 'active' : 'done';
+        });
+        renderPhaseTimeline(container, _livePhases[containerId]);
+    } else if (finalTimings) {
+        const phases = Object.entries(finalTimings).map(([name, ms]) => ({ name, ms, status: 'done' }));
+        renderPhaseTimeline(container, phases);
+    }
+}
+function renderPhaseTimeline(container, phases) {
+    container.innerHTML = phases.map(p =>
+        `<div class="phase-item ${p.status || 'done'}">
+            <div class="phase-dot"></div>
+            <span class="font-mono">${escHtml(p.name)}</span>
+            ${p.ms != null ? `<span class="text-[10px] text-gray-600">${Math.round(p.ms)}ms</span>` : ''}
+        </div>`
+    ).join('');
+}
+
+// ── Thought section (collapsible phases + SQL) ────────────────────────────────
+function finalizeThoughtSection(phaseContainerId, thoughtId, sql) {
+    const phaseEl = document.getElementById(phaseContainerId);
+    if (!phaseEl) return;
+
+    const phasesInnerHTML = phaseEl.innerHTML.trim();
+    const hasSql = sql && sql.trim();
+    const hasPhases = phasesInnerHTML.length > 0;
+
+    // Nothing to collapse — just remove the empty container
+    if (!hasPhases && !hasSql) { phaseEl.remove(); return; }
+
+    const sqlHTML = hasSql ? `<div class="sql-block mt-2">
+        <div class="flex items-center justify-between px-3 pt-2 pb-1">
+            <span class="text-[10px] font-mono text-gray-500 uppercase tracking-wider">SQL</span>
+            <button class="btn-icon p-1 rounded text-[10px]" onclick="copySQL(this)" data-sql="${escHtml(sql)}" title="Copy SQL">
+                <i data-lucide="copy" style="width:11px;height:11px;"></i>
+            </button>
+        </div>
+        <pre>${escHtml(sql)}</pre>
+    </div>` : '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'thought-section';
+    wrapper.innerHTML = `
+        <button class="thought-toggle-btn" onclick="toggleThought('${thoughtId}', this)" aria-expanded="false">
+            <i data-lucide="brain-circuit" style="width:11px;height:11px;"></i>
+            <span>Thought process</span>
+            <i data-lucide="chevron-down" style="width:10px;height:10px;" class="thought-chevron ml-1"></i>
+        </button>
+        <div id="${thoughtId}" class="thought-content hidden">
+            ${hasPhases ? `<div class="space-y-1 mb-2">${phasesInnerHTML}</div>` : ''}
+            ${sqlHTML}
+        </div>`;
+    phaseEl.replaceWith(wrapper);
+    lucide.createIcons({ nodes: [wrapper] });
+}
+
+function toggleThought(id, btn) {
+    const content = document.getElementById(id);
+    if (!content) return;
+    const isNowHidden = content.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', String(!isNowHidden));
+    const chevron = btn.querySelector('.thought-chevron');
+    if (chevron) chevron.classList.toggle('open', !isNowHidden);
+}
+
+// ── Render bot result ─────────────────────────────────────────────────────────
+function renderBotResult(containerId, result, botMsgId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let html = '';
+
+    // Cache badge
+    if (result.from_cache) {
+        html += `<div class="flex items-center gap-1 text-[10px] text-amber-400 mb-1">
+            <i data-lucide="zap" style="width:10px;height:10px;"></i> Cached result
+        </div>`;
+    }
+
+    // Results table
+    if (result.rows && result.rows.length > 0) {
+        const cols = result.columns || Object.keys(result.rows[0] || {});
+        const rows = result.rows.slice(0, 50);
+        html += `<div class="mb-2">
+            <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] font-mono text-gray-500 uppercase tracking-wider">Results</span>
+                <span class="bg-indigo-500/20 text-indigo-300 text-[10px] px-1.5 py-0.5 rounded font-mono">${result.rows.length} rows</span>
+                ${result.rows.length > 50 ? '<span class="text-[10px] text-gray-500">(showing 50)</span>' : ''}
+            </div>
+            <div class="overflow-x-auto surface-border rounded-lg">
+                <table class="result-table">
+                    <thead><tr>${cols.map(c => `<th>${escHtml(String(c))}</th>`).join('')}</tr></thead>
+                    <tbody>${rows.map(row => `<tr>${cols.map((c, i) => { const v = Array.isArray(row) ? (row[i] ?? '') : (row[c] ?? ''); return `<td title="${escHtml(String(v))}">${escHtml(String(v))}</td>`; }).join('')}</tr>`).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
+    }
+
+    // NL Summary
+    if (result.natural_language_summary) {
+        html += `<div class="text-[13px] text-gray-200 leading-relaxed mb-2">${escHtml(result.natural_language_summary)}</div>`;
+    }
+
+    // Clarification
+    if (result.is_clarification && result.clarification_question) {
+        html += `<div class="clarification-alert mb-2">
+            <div class="flex items-center gap-2 mb-2 text-amber-400 text-xs font-medium">
+                <i data-lucide="help-circle" style="width:13px;height:13px;"></i>
+                Clarification needed
+            </div>
+            <p class="text-[13px] text-amber-200 mb-3">${escHtml(result.clarification_question)}</p>
+            <div class="flex gap-2">
+                <input type="text" class="input-dark flex-1 text-xs" placeholder="Your reply…" id="clarify-input-${botMsgId}">
+                <button onclick="replyToClarification('${escHtml(botMsgId)}')" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-xs font-medium">Reply</button>
+            </div>
+        </div>`;
+    }
+
+    // Anomaly warnings
+    if (result.anomaly_warnings && result.anomaly_warnings.length > 0) {
+        html += `<div class="flex flex-wrap gap-1.5 mb-2">
+            ${result.anomaly_warnings.map(w => `<span class="bg-yellow-500/10 border border-yellow-500/25 text-yellow-300 text-[10px] px-2 py-1 rounded-full flex items-center gap-1">
+                <i data-lucide="alert-triangle" style="width:10px;height:10px;"></i>${escHtml(w)}</span>`).join('')}
+        </div>`;
+    }
+
+    // Performance hints
+    if (result.performance_hints && result.performance_hints.length > 0) {
+        html += `<div class="flex flex-wrap gap-1.5 mb-2">
+            ${result.performance_hints.map(h => `<span class="bg-blue-500/10 border border-blue-500/25 text-blue-300 text-[10px] px-2 py-1 rounded-full flex items-center gap-1">
+                <i data-lucide="info" style="width:10px;height:10px;"></i>${escHtml(h)}</span>`).join('')}
+        </div>`;
+    }
+
+    // Action bar
+    const msgDbId = result.message_id || '';
+    const hasRows = result.rows && result.rows.length > 0;
+    html += `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+        <button onclick="submitFeedback('${escHtml(msgDbId)}','up',this)" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Good">
+            <i data-lucide="thumbs-up" style="width:12px;height:12px;"></i>
+        </button>
+        <button onclick="submitFeedback('${escHtml(msgDbId)}','down',this)" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Bad">
+            <i data-lucide="thumbs-down" style="width:12px;height:12px;"></i>
+        </button>
+        ${hasRows ? `<button onclick="openAnalyseModal('${escHtml(botMsgId)}')" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Analyse with AI">📊 Analyse</button>` : ''}
+        ${hasRows ? `<button onclick="exportCSV('${escHtml(_activeConvId)}')" class="btn-icon p-1.5 rounded-md text-[11px] flex items-center gap-1" title="Export CSV">
+            <i data-lucide="download" style="width:12px;height:12px;"></i><span class="text-[10px]">CSV</span>
+        </button>` : ''}
+        ${result.is_clarification ? `<span class="text-[10px] text-amber-400 flex items-center gap-1 ml-1">
+            <i data-lucide="message-circle" style="width:10px;height:10px;"></i> Needs clarification
+        </span>` : ''}
+    </div>`;
+
+    container.innerHTML = html;
+    lucide.createIcons({ nodes: [container] });
+}
+
+function renderBotError(containerId, msg) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = `<div class="flex items-center gap-2 text-red-400 text-[13px] bg-red-500/8 border border-red-500/20 rounded-lg p-3">
+        <i data-lucide="alert-circle" style="width:14px;height:14px;"></i>
+        <span>${escHtml(msg)}</span>
+    </div>`;
+    lucide.createIcons({ nodes: [container] });
+}
+
+function copySQL(btn) {
+    const sql = btn.dataset.sql;
+    navigator.clipboard.writeText(sql).then(() => toast('SQL copied', 'success')).catch(() => toast('Copy failed', 'error'));
+}
+
+async function submitFeedback(msgId, rating, btn) {
+    if (!msgId) return;
+    try {
+        await api('POST', `/v1/messages/${msgId}/feedback`, { rating });
+        btn.classList.add(rating === 'up' ? 'text-green-400' : 'text-red-400');
+        toast('Feedback recorded', 'success');
+    } catch {}
+}
+
+async function exportCSV(convId) {
+    const token = localStorage.getItem(STORAGE_KEY);
+    const url = `${API_BASE}/v1/conversations/${convId}/export?fmt=csv`;
+    try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) { showToast('Export failed', 'error'); return; }
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = 'nexusdata_export.csv';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch (e) {
+        showToast('Export failed: ' + e.message, 'error');
+    }
+}
+
+function replyToClarification(botMsgId) {
+    const input = document.getElementById('clarify-input-' + botMsgId);
+    if (!input || !input.value.trim()) return;
+    const text = input.value.trim();
+    document.getElementById('user-input').value = text;
+    handleSend();
+}
+
+// ── Append messages ───────────────────────────────────────────────────────────
+function appendUserMsg(text, msgId, withEdit) {
+    const cm = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-user-wrap flex flex-col items-end w-full max-w-3xl mx-auto mt-6';
+    wrap.innerHTML = `
+        <div class="flex items-center gap-2 mb-1 ${withEdit ? '' : 'hidden'}">
+            <button class="msg-edit-btn btn-icon p-1 rounded text-[10px]" onclick="editUserMsg(this)" data-text="${escHtml(text)}" title="Edit & resubmit">
+                <i data-lucide="pencil" style="width:11px;height:11px;"></i>
+            </button>
+        </div>
+        <div class="msg-user p-3.5 px-4 rounded-2xl rounded-tr-sm text-[13px] text-gray-200">${escHtml(text)}</div>
+    `;
+    if (!withEdit) wrap.querySelector('.flex.items-center.gap-2.mb-1').remove();
+    cm.appendChild(wrap);
+    lucide.createIcons({ nodes: [wrap] });
+}
+
+function editUserMsg(btn) {
+    const text = btn.dataset.text;
+    document.getElementById('user-input').value = text;
+    document.getElementById('user-input').focus();
+    _rerunMode = true;
+}
+
+function appendBotMsg(result, msgId, live) {
+    const cm = document.getElementById('chat-messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-agent flex flex-col items-start gap-2 w-full max-w-3xl mx-auto mt-6';
+    const phasesId = 'phases-hist-' + msgId;
+    const resultId = 'result-hist-' + msgId;
+    wrap.innerHTML = `
+        <div class="flex items-center gap-2 text-[11px] font-medium text-gray-500">
+            <i data-lucide="cpu" style="width:14px;height:14px;" class="text-indigo-400"></i>
+            <span>Nexus Engine</span>
+        </div>
+        <div class="w-full space-y-2">
+            <div id="${phasesId}" class="space-y-1"></div>
+            <div id="${resultId}"></div>
+        </div>
+    `;
+    cm.appendChild(wrap);
+    lucide.createIcons({ nodes: [wrap] });
+    if (result.phase_timings && Object.keys(result.phase_timings).length) {
+        updatePhaseTimeline(phasesId, null, null, false, result.phase_timings);
+    }
+    // Wrap phases + SQL into collapsible thought section (hidden by default)
+    finalizeThoughtSection(phasesId, 'thought-hist-' + msgId, result.sql);
+    renderBotMsg(resultId, result);
+}
+
+function renderBotMsg(containerId, result) {
+    // History messages: delegate to the full renderer so tables are shown
+    renderBotResult(containerId, result, containerId);
+}
+
+function scrollChat() {
+    const cm = document.getElementById('chat-messages');
+    cm.scrollTop = cm.scrollHeight;
+}
+
+// ── Settings Modal ────────────────────────────────────────────────────────────
+function openSettings(pane) {
+    document.getElementById('settings-modal').classList.remove('hidden');
+    if (pane) {
+        // Activate pane
+        document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+            if (btn.dataset.target === pane) {
+                btn.click();
+            }
+        });
+    }
+    loadSettingsPaneData();
+}
+
+function loadSettingsPaneData() {
+    // Profile
+    if (_currentUser) {
+        document.getElementById('pref-display-name').value = _currentUser.name || '';
+        document.getElementById('pref-email').value = _currentUser.email || '';
+    }
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+    document.body.classList.remove('theme-frost', 'theme-midnight');
+    if (theme) document.body.classList.add(theme);
+    document.querySelectorAll('.theme-card').forEach(card => {
+        const isActive = card.dataset.theme === theme;
+        card.classList.toggle('border-indigo-500', isActive);
+        card.classList.toggle('bg-indigo-500/10', isActive);
+        card.classList.toggle('border-white/5', !isActive);
+        card.classList.toggle('bg-[#161618]', !isActive);
+    });
+}
+
+// ── DB picker modal ───────────────────────────────────────────────────────────
+function openDBPicker() {
+    const modal = document.getElementById('db-picker-modal');
+    modal.style.display = 'flex';
+    const list = document.getElementById('dpm-list');
+    if (!_connections.length) {
+        list.innerHTML = '<div class="text-xs text-gray-500 text-center py-2">No connections yet</div>';
+    } else {
+        list.innerHTML = _connections.map(c => {
+            const isActive = c.id === _activeConnId;
+            return `<div class="flex items-center justify-between p-3 rounded-lg ${isActive ? 'bg-indigo-500/10 border border-indigo-500/30' : 'bg-[#1c1c1f] border border-white/5'} cursor-pointer hover:bg-[#232326] transition-colors" onclick="selectDB('${escHtml(c.id)}')">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="database" style="width:13px;height:13px;" class="text-indigo-400"></i>
+                    <div>
+                        <div class="text-xs font-medium text-gray-200">${escHtml(c.name)}</div>
+                        <div class="text-[10px] text-gray-500 font-mono">${escHtml(c.dialect || detectDialect(c.uri_masked || ''))}</div>
+                    </div>
+                </div>
+                ${isActive ? '<span class="text-[9px] font-bold text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded">ACTIVE</span>' : ''}
+            </div>`;
+        }).join('');
+        lucide.createIcons({ nodes: [list] });
+    }
+    document.getElementById('db-picker-modal').style.display = 'flex';
+}
+
+function selectDB(connId) {
+    _activeConnId = connId;
+    updateDBSelector();
+    document.getElementById('db-picker-modal').style.display = 'none';
+    // If the current conversation belongs to a different DB, deactivate it
+    // so the next message creates a fresh conversation against the new DB.
+    const activeConv = _conversations.find(c => c.id === _activeConvId);
+    if (activeConv && activeConv.db_conn_id && activeConv.db_conn_id !== connId) {
+        _activeConvId = null;
+        clearChatArea();
+        document.getElementById('chat-messages').innerHTML = `<div class="welcome-view max-w-2xl mx-auto mt-12 mb-8 text-center md:text-left">
+            <h2 class="text-xl font-medium text-gray-100 mb-2">Database switched</h2>
+            <p class="text-sm text-[#71717a]">Ask anything about your connected database.</p>
+        </div>`;
+        renderConvList();
+    }
+    toast('Database switched', 'success');
+}
+
+// ── jQuery document ready ─────────────────────────────────────────────────────
+$(document).ready(function() {
+    lucide.createIcons();
+
+    // ── Auth forms ────────────────────────────────────────────────────────────
+    $('#go-register').on('click', function(e) {
+        e.preventDefault();
+        $('#login-form').addClass('hidden');
+        $('#register-form').removeClass('hidden');
+        $('#auth-subtitle').text('Create your account');
+    });
+    $('#go-login').on('click', function(e) {
+        e.preventDefault();
+        $('#register-form').addClass('hidden');
+        $('#login-form').removeClass('hidden');
+        $('#auth-subtitle').text('Sign in to your workspace');
+    });
+
+    $('#login-form').on('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('login-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div>';
+        try {
+            const data = await api('POST', '/auth/login', {
+                email: $('#login-email').val(),
+                password: $('#login-password').val(),
+            });
+            storeToken(data.token, data.expires_at);
+            _currentUser = data.user;
+            applyUserToUI();
+            showApp();
+            await Promise.all([loadConnections(), loadConversations(), loadModelConfig()]);
+            renderConvList();
+            applyTheme((_currentUser.settings || {}).theme || '');
+        } catch {
+            // api() already showed toast
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Sign In';
+        }
+    });
+
+    $('#register-form').on('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('reg-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div>';
+        try {
+            const data = await api('POST', '/auth/register', {
+                name: $('#reg-name').val(),
+                email: $('#reg-email').val(),
+                password: $('#reg-password').val(),
+            });
+            storeToken(data.token, data.expires_at);
+            _currentUser = data.user;
+            applyUserToUI();
+            showApp();
+            await Promise.all([loadConnections(), loadConversations(), loadModelConfig()]);
+            renderConvList();
+            toast('Account created!', 'success');
+        } catch {
+            // api() already showed toast
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Create Account';
+        }
+    });
+
+    // ── Logout ────────────────────────────────────────────────────────────────
+    $('#logout-trigger').on('click', async function() {
+        try { await api('POST', '/auth/logout'); } catch {}
+        clearToken();
+        _currentUser = null;
+        _conversations = [];
+        _connections = [];
+        _activeConvId = null;
+        showLogin();
+    });
+
+    // ── Sidebar toggle ────────────────────────────────────────────────────────
+    $('#open-sidebar').on('click', () => $('#sidebar').removeClass('closed'));
+    $('#close-sidebar').on('click', () => $('#sidebar').addClass('closed'));
+    $(window).on('resize', function() {
+        if ($(window).width() > 1024) {
+            $('#sidebar').removeClass('closed');
+            $('#open-sidebar').addClass('hidden');
+        } else {
+            $('#sidebar').addClass('closed');
+            $('#open-sidebar').removeClass('hidden');
+        }
+    }).trigger('resize');
+
+    // ── New chat ──────────────────────────────────────────────────────────────
+    $('#new-chat-btn').on('click', async function() {
+        if (!_connections.length) {
+            openSettings('set-database');
+            toast('Add a database connection first.', 'info');
+            return;
+        }
+        if (!_activeConnId && _connections.length) {
+            // Open DB picker
+            openDBPicker();
+            return;
+        }
+        try {
+            const conv = await api('POST', '/v1/conversations', { db_conn_id: _activeConnId, title: 'New Chat' });
+            _conversations.unshift(conv);
+            _activeConvId = conv.id;
+            clearChatArea();
+            document.getElementById('chat-messages').innerHTML = `<div class="welcome-view max-w-2xl mx-auto mt-12 mb-8 text-center md:text-left">
+                <h2 class="text-xl font-medium text-gray-100 mb-2">New Chat</h2>
+                <p class="text-sm text-[#71717a]">Ask anything about your connected database.</p>
+            </div>`;
+            renderConvList();
+            document.getElementById('chat-title').textContent = conv.title;
+        } catch {}
+    });
+
+    // ── Conversation list clicks ───────────────────────────────────────────────
+    $('#conv-list').on('click', '.conv-item', async function(e) {
+        if ($(e.target).closest('[data-conv-del]').length) return;
+        const id = $(this).data('id');
+        await loadConversation(id);
+    });
+    $('#conv-list').on('click', '[data-conv-del]', async function(e) {
+        e.stopPropagation();
+        const id = $(this).data('conv-del');
+        try {
+            await api('DELETE', `/v1/conversations/${id}`);
+            _conversations = _conversations.filter(c => c.id !== id);
+            if (_activeConvId === id) {
+                _activeConvId = null;
+                clearChatArea();
+                document.getElementById('chat-messages').innerHTML = '';
+            }
+            renderConvList();
+            toast('Conversation deleted', 'info');
+        } catch {}
+    });
+
+    // ── DB selector ───────────────────────────────────────────────────────────
+    $('#db-selector').on('click', function() {
+        openDBPicker();
+    });
+
+    // ── DB picker modal close ─────────────────────────────────────────────────
+    $('#dpm-close, #dpm-backdrop').on('click', function() {
+        $('#db-picker-modal').hide();
+    });
+    $('#dpm-add-conn').on('click', function() {
+        $('#db-picker-modal').hide();
+        openSettings('set-database');
+    });
+
+    // ── Send button & Enter ───────────────────────────────────────────────────
+    $('#send-btn').on('click', handleSend);
+    $('#user-input').on('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    });
+    $('#user-input').on('input', function() {
+        this.style.height = 'auto';
+        this.style.height = this.scrollHeight + 'px';
+    });
+
+    // ── Settings open/close ───────────────────────────────────────────────────
+    $('#open-settings').on('click', function() { openSettings(); });
+    $('#close-settings, #close-settings-footer, #settings-backdrop').on('click', function() {
+        $('#settings-modal').addClass('hidden');
+    });
+
+    // ── Settings tabs ─────────────────────────────────────────────────────────
+    $('.settings-tab-btn').on('click', function() {
+        const target = $(this).data('target');
+        $('.settings-tab-btn').removeClass('active text-white').addClass('text-[#a1a1a6]');
+        $(this).addClass('active text-white').removeClass('text-[#a1a1a6]');
+        $('.settings-pane').addClass('hidden');
+        $('#' + target).removeClass('hidden');
+
+        // Lazy-load pane data
+        if (target === 'set-security') loadAPIKeys();
+        if (target === 'set-model') loadModelConfigPane();
+        if (target === 'set-database') loadConnectionsPane();
+    });
+
+    // ── Save profile ──────────────────────────────────────────────────────────
+    $('#save-profile-btn').on('click', async function() {
+        const name = $('#pref-display-name').val().trim();
+        if (!name) { toast('Name required', 'error'); return; }
+        try {
+            await api('PATCH', '/auth/me', { name, settings: _currentUser?.settings || {} });
+            if (_currentUser) _currentUser.name = name;
+            applyUserToUI();
+            toast('Profile saved', 'success');
+        } catch {}
+    });
+
+    // ── Change password ───────────────────────────────────────────────────────
+    $('#change-pw-btn').on('click', async function() {
+        const cur = $('#chpw-current').val();
+        const nw = $('#chpw-new').val();
+        const confirm = $('#chpw-confirm').val();
+        if (!cur || !nw || !confirm) { toast('Fill in all three password fields', 'error'); return; }
+        if (nw.length < 8) { toast('New password must be at least 8 characters', 'error'); return; }
+        if (nw !== confirm) { toast('New passwords do not match', 'error'); return; }
+        try {
+            await api('POST', '/auth/change-password', { current_password: cur, new_password: nw });
+            $('#chpw-current').val('');
+            $('#chpw-new').val('');
+            $('#chpw-confirm').val('');
+            toast('Password updated', 'success');
+        } catch {}
+    });
+
+    // ── API Keys ──────────────────────────────────────────────────────────────
+    $('#create-api-key-btn').on('click', async function() {
+        const name = prompt('Key name:');
+        if (!name || !name.trim()) return;
+        try {
+            const data = await api('POST', '/v1/api-keys', { name: name.trim() });
+            // Show one-time modal
+            document.getElementById('otm-key-text').textContent = data.full_key;
+            document.getElementById('one-time-modal').style.display = 'flex';
+            lucide.createIcons();
+            loadAPIKeys();
+        } catch {}
+    });
+
+    $('#otm-close, #otm-backdrop').on('click', function() {
+        $('#one-time-modal').hide();
+    });
+    $('#otm-copy-btn').on('click', function() {
+        const key = document.getElementById('otm-key-text').textContent;
+        navigator.clipboard.writeText(key).then(() => toast('Key copied', 'success')).catch(() => toast('Copy failed', 'error'));
+    });
+
+    // ── Model config pane ─────────────────────────────────────────────────────
+    $('#mc-provider').on('change', function() {
+        const provider = $(this).val();
+        populateModelDropdown(provider);
+    });
+
+    $('#save-model-btn').on('click', async function() {
+        const provider = $('#mc-provider').val();
+        const model_name = $('#mc-model').val();
+        const api_key = $('#mc-api-key').val().trim();
+        const body = { provider, model_name };
+        if (api_key) body.api_key = api_key;
+        try {
+            await api('PUT', '/v1/model-config', body);
+            _modelConfig = { ...(_modelConfig || {}), provider, model_name };
+            document.getElementById('active-model-name').textContent = model_name.toUpperCase();
+            $('#mc-api-key').val('');
+            if (api_key) {
+                await loadModelConfigPane(); // refresh preview
+                toast('Model config and API key saved', 'success');
+            } else {
+                toast('Model config saved', 'success');
+            }
+        } catch {}
+    });
+
+    // ── Database pane ─────────────────────────────────────────────────────────
+    $('#show-add-conn-btn').on('click', function() {
+        $('#add-conn-form').removeClass('hidden');
+        $('#show-add-conn-btn').addClass('hidden');
+    });
+    $('#cancel-conn-btn').on('click', function() {
+        $('#add-conn-form').addClass('hidden');
+        $('#show-add-conn-btn').removeClass('hidden');
+        $('#new-conn-name').val('');
+        $('#new-conn-uri').val('');
+    });
+    $('#save-conn-btn').on('click', async function() {
+        const name = $('#new-conn-name').val().trim();
+        const uri = $('#new-conn-uri').val().trim();
+        if (!name || !uri) { toast('Name and URI required', 'error'); return; }
+        try {
+            await api('POST', '/v1/connections', { name, uri });
+            await loadConnections();
+            loadConnectionsPane();
+            $('#cancel-conn-btn').trigger('click');
+            toast('Connection saved', 'success');
+        } catch {}
+    });
+
+    // ── Appearance ────────────────────────────────────────────────────────────
+    $(document).on('click', '.theme-card', async function() {
+        const theme = $(this).data('theme');
+        applyTheme(theme);
+        try {
+            const settings = { ...(_currentUser?.settings || {}), theme };
+            await api('PUT', '/v1/settings', settings);
+            if (_currentUser) _currentUser.settings = settings;
+        } catch {}
+    });
+
+    // ── Clear memory ──────────────────────────────────────────────────────────
+    $('#clear-memory-btn').on('click', async function() {
+        if (!confirm('Delete ALL conversations and exported data? This cannot be undone. Your knowledge base will be preserved.')) return;
+        const r = await api('DELETE', '/v1/memory');
+        if (r) {
+            toast(`Cleared ${r.conversations_deleted} conversation(s).`, 'success');
+            _conversations = [];
+            renderConvList();
+            // Start fresh
+            _activeConvId = null;
+            document.getElementById('chat-messages').innerHTML = '';
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+    });
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    boot();
+});
+
+// ── Lazy loaders for settings panes ──────────────────────────────────────────
+async function loadAPIKeys() {
+    const container = document.getElementById('api-keys-list');
+    container.innerHTML = '<div class="text-xs text-gray-500">Loading…</div>';
+    try {
+        const data = await api('GET', '/v1/api-keys');
+        const keys = data.api_keys || [];
+        if (!keys.length) {
+            container.innerHTML = '<div class="text-xs text-gray-500">No API keys yet.</div>';
+            return;
+        }
+        container.innerHTML = keys.map(k => {
+            const date = new Date(k.created_at).toLocaleDateString();
+            return `<div class="p-3 bg-[#161618] rounded-lg border border-white/5 flex items-center justify-between">
+                <div>
+                    <div class="text-xs font-medium text-gray-300 mb-0.5">${escHtml(k.name)}</div>
+                    <div class="text-[11px] font-mono text-gray-500">${escHtml(k.key_preview)}</div>
+                    <div class="text-[10px] text-gray-600 mt-1">${date}</div>
+                </div>
+                <button class="text-red-400 hover:text-red-300 text-[11px] font-medium" onclick="revokeAPIKey('${escHtml(k.id)}', this)">Revoke</button>
+            </div>`;
+        }).join('');
+    } catch {
+        container.innerHTML = '<div class="text-xs text-red-400">Failed to load keys.</div>';
+    }
+}
+
+async function revokeAPIKey(keyId, btn) {
+    try {
+        await api('DELETE', `/v1/api-keys/${keyId}`);
+        btn.closest('div.p-3').remove();
+        toast('API key revoked', 'info');
+    } catch {}
+}
+
+async function loadModelConfigPane() {
+    const data = await api('GET', '/v1/model-config');
+    if (!data) return;
+    // Show provider
+    const provSel = document.getElementById('mc-provider');
+    if (provSel) provSel.value = data.provider || '';
+    // Show model
+    const modSel = document.getElementById('mc-model');
+    if (modSel) { populateModelDropdown(data.provider, data.available_providers); modSel.value = data.model_name || ''; }
+    // Show masked API key preview; user can type a new key to replace it
+    const keyEl = document.getElementById('mc-api-key');
+    if (keyEl) {
+        keyEl.value = '';
+        keyEl.readOnly = false;
+        keyEl.placeholder = (data.api_key_preview || 'No key set') + '  ← paste new key to update';
+        keyEl.title = 'Paste your new API key here to update it. Leave blank to keep the current key.';
+        keyEl.classList.remove('opacity-60', 'cursor-not-allowed');
+    }
+}
+
+function populateModelDropdown(provider, selectedModel) {
+    const models = _availableProviders[provider] || [];
+    const sel = document.getElementById('mc-model');
+    sel.innerHTML = models.map(m => `<option value="${escHtml(m)}" ${m === selectedModel ? 'selected' : ''}>${escHtml(m)}</option>`).join('');
+}
+
+async function loadConnectionsPane() {
+    const container = document.getElementById('conn-list-settings');
+    container.innerHTML = '<div class="text-xs text-gray-500">Loading…</div>';
+    try {
+        const data = await api('GET', '/v1/connections');
+        _connections = data.connections || [];
+        updateDBSelector();
+        if (!_connections.length) {
+            container.innerHTML = '<div class="text-xs text-gray-500">No connections yet.</div>';
+            return;
+        }
+        container.innerHTML = _connections.map(c => {
+            const isActive = c.id === _activeConnId;
+            const metaJson = escHtml(JSON.stringify(c.db_metadata || {}));
+            return `<div class="p-4 bg-[#161618] rounded-lg border ${isActive ? 'border-indigo-500/30' : 'border-white/5'}" id="conn-card-${escHtml(c.id)}">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="database" style="width:14px;height:14px;" class="text-indigo-400"></i>
+                        <span class="font-medium text-[13px] text-white" id="conn-name-${escHtml(c.id)}">${escHtml(c.name)}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isActive ? '<span class="bg-green-500/20 text-green-400 text-[10px] px-1.5 py-0.5 rounded font-bold">CONNECTED</span>' : ''}
+                        <button class="btn-icon p-1 rounded" onclick="openEditConn('${escHtml(c.id)}', '${escHtml(c.name)}', '${metaJson}')" title="Edit">
+                            <i data-lucide="pencil" style="width:12px;height:12px;"></i>
+                        </button>
+                        <button class="btn-icon p-1 rounded text-red-400 hover:text-red-300" onclick="deleteConn('${escHtml(c.id)}')" title="Delete">
+                            <i data-lucide="trash-2" style="width:12px;height:12px;"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="text-[11px] text-gray-500 font-mono truncate">${escHtml(c.uri_masked || '(hidden)')}</div>
+                <div class="text-[10px] text-gray-600 mt-1">${escHtml(c.dialect || detectDialect(c.uri_masked || ''))}</div>
+            </div>`;
+        }).join('');
+        lucide.createIcons({ nodes: [container] });
+    } catch {
+        container.innerHTML = '<div class="text-xs text-red-400">Failed to load connections.</div>';
+    }
+}
+
+function openEditConn(connId, connName, metaJson) {
+    _editingConnId = connId;
+    const meta = metaJson ? JSON.parse(metaJson) : {};
+    const tableDesc = JSON.stringify(meta.table_descriptions || {}, null, 2);
+    const colDesc = JSON.stringify(meta.column_descriptions || {}, null, 2);
+    const notes = meta.notes || '';
+    document.getElementById('edit-conn-form').innerHTML = `
+        <h4 class="font-medium mb-3">Edit: ${escHtml(connName)}</h4>
+        <label class="text-xs text-[var(--text-muted)]">Connection Name</label>
+        <input id="edit-conn-name" value="${escHtml(connName)}" class="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-3 input-dark"/>
+        <label class="text-xs text-[var(--text-muted)]">New URI (leave blank to keep current)</label>
+        <input id="edit-conn-uri" placeholder="postgresql://user:pass@host/db" class="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-3 font-mono text-xs input-dark"/>
+        <label class="text-xs text-[var(--text-muted)]">Table Descriptions (JSON)</label>
+        <textarea id="edit-table-desc" rows="4" class="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-3 font-mono text-xs input-dark">${escHtml(tableDesc)}</textarea>
+        <label class="text-xs text-[var(--text-muted)]">Column Descriptions (JSON: {table: {col: desc}})</label>
+        <textarea id="edit-col-desc" rows="4" class="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-3 font-mono text-xs input-dark">${escHtml(colDesc)}</textarea>
+        <label class="text-xs text-[var(--text-muted)]">Notes</label>
+        <textarea id="edit-conn-notes" rows="2" class="w-full bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-3 input-dark">${escHtml(notes)}</textarea>
+        <div class="flex items-center gap-2 mb-3">
+            <label class="text-xs text-[var(--text-muted)]">Upload schema file (.md/.txt/.json):</label>
+            <input type="file" id="edit-conn-file" accept=".md,.txt,.json,.yaml,.yml" class="text-xs"/>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="saveEditConn()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">Save</button>
+            <button onclick="document.getElementById('edit-conn-form').innerHTML=''" class="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--border)] rounded-lg text-sm transition-colors">Cancel</button>
+        </div>`;
+}
+
+async function saveEditConn() {
+    if (!_editingConnId) return;
+    const name = document.getElementById('edit-conn-name')?.value.trim();
+    const uri = document.getElementById('edit-conn-uri')?.value.trim();
+    const tableDescRaw = document.getElementById('edit-table-desc')?.value.trim();
+    const colDescRaw = document.getElementById('edit-col-desc')?.value.trim();
+    const notes = document.getElementById('edit-conn-notes')?.value.trim();
+    const fileInput = document.getElementById('edit-conn-file');
+
+    // Save connection name/URI
+    const patch = {};
+    if (name) patch.name = name;
+    if (uri) patch.uri = uri;
+    if (Object.keys(patch).length) {
+        const r = await api('PATCH', `/v1/connections/${_editingConnId}`, patch);
+        if (!r) return;
+    }
+
+    // Save metadata
+    try {
+        const meta = {
+            table_descriptions: tableDescRaw ? JSON.parse(tableDescRaw) : {},
+            column_descriptions: colDescRaw ? JSON.parse(colDescRaw) : {},
+            notes: notes || '',
+        };
+        await api('PATCH', `/v1/connections/${_editingConnId}/metadata`, meta);
+    } catch (e) {
+        toast('Invalid JSON in table or column descriptions', 'error');
+        return;
+    }
+
+    // Upload file if selected
+    if (fileInput?.files?.length) {
+        const form = new FormData();
+        form.append('file', fileInput.files[0]);
+        const token = localStorage.getItem(STORAGE_KEY);
+        const res = await fetch(`${API_BASE}/v1/connections/${_editingConnId}/upload`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+        });
+        if (!res.ok) { toast('File upload failed', 'error'); return; }
+    }
+
+    toast('Connection updated', 'success');
+    document.getElementById('edit-conn-form').innerHTML = '';
+    loadConnectionsPane();
+}
+
+async function deleteConn(connId) {
+    if (!confirm('Delete this connection?')) return;
+    try {
+        await api('DELETE', `/v1/connections/${connId}`);
+        _connections = _connections.filter(c => c.id !== connId);
+        if (_activeConnId === connId) _activeConnId = null;
+        updateDBSelector();
+        loadConnectionsPane();
+        toast('Connection deleted', 'info');
+    } catch {}
+}
+
+// ── Analysis Modal ────────────────────────────────────────────────────────────
+function openAnalyseModal(botMsgId) {
+    document.getElementById('analysis-modal').classList.remove('hidden');
+    document.getElementById('analyse-query').focus();
+    document.getElementById('analyse-result').innerHTML = 'Enter a question above to analyse the last query result.';
+}
+
+async function runAnalysis() {
+    const query = document.getElementById('analyse-query').value.trim();
+    const wantsChart = document.getElementById('analyse-chart').checked;
+    if (!query || !_activeConvId) return;
+    const btn = document.getElementById('analyse-run-btn');
+    btn.disabled = true; btn.textContent = 'Running…';
+    document.getElementById('analyse-result').innerHTML = '<span class="text-[var(--text-muted)]">Analysing…</span>';
+    try {
+        const r = await api('POST', `/v1/conversations/${_activeConvId}/analyze`, { query, wants_chart: wantsChart });
+        if (!r) return;
+        let html = `<div class="bg-[var(--bg-tertiary)] rounded-lg p-3 whitespace-pre-wrap" style="background:#1c1c1f">${escHtml(r.summary || '')}</div>`;
+        if (r.chart_b64) {
+            html += `<img src="data:${r.chart_mime || 'image/png'};base64,${r.chart_b64}" class="w-full rounded-lg mt-3 border border-[var(--border)]" alt="Chart"/>`;
+        }
+        document.getElementById('analyse-result').innerHTML = html;
+    } catch (e) {
+        document.getElementById('analyse-result').innerHTML = `<span class="text-red-400">Error: ${escHtml(e.message)}</span>`;
+    } finally {
+        btn.disabled = false; btn.textContent = 'Run';
+    }
+}
+</script>
+</body>
+</html>
